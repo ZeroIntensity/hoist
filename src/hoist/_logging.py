@@ -3,6 +3,8 @@ from rich.logging import RichHandler
 from typing import Dict
 from typing_extensions import Final
 
+__all__ = ("log",)
+
 _FORMAT: Final[str] = "%(message)s"
 _COLORS: Final[Dict[int, str]] = {
     logging.DEBUG: "bold blue",

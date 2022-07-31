@@ -75,7 +75,10 @@ class Server:
             )
 
             if not (parse_version(version) >= minver_actual):
-                await ws.error(4)
+                await ws.error(
+                    4,
+                    payload={"needed": minver_actual.to_string()},
+                )
 
         if not (await self._login_func(self, token)):
             await ws.error(3)

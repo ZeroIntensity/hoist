@@ -77,38 +77,43 @@ class Socket:
 
     async def _send(
         self,
-        obj: Dict[str, Any],
         *,
         success: bool = True,
         payload: Optional[Dict[str, Any]] = None,
+        code: int = 0,
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+        desc: Optional[str] = None,
     ) -> None:
         await self.ws.send_json(
             {
                 "success": success,
                 "data": payload,
-                **obj,
+                "error": error,
+                "code": code,
+                "message": message,
+                "desc": desc,
             }
         )
 
     async def error(
         self,
         code: int,
+        *,
         description: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
     ) -> NoReturn:
         err = ERRORS[code]
         error = err[0]
         message = err[1]
 
         await self._send(
-            {
-                "code": code,
-                "error": error,
-                "message": message,
-                "desc": description,
-            },
-            success=False,
+            code=code,
+            desc=description,
+            error=error,
+            message=message,
+            payload=payload,
         )
-
         raise ClientError(code=code, error=error, message=message)
 
     async def recv(self, schema: Schema) -> List[Any]:

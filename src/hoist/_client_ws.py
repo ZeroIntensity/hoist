@@ -1,5 +1,9 @@
 from aiohttp import ClientWebSocketResponse
-from .exceptions import ServerLoginFailed, ServerResponseError
+from .exceptions import (
+    ServerLoginError,
+    ServerResponseError,
+    InvalidVersionError,
+)
 from typing import NamedTuple, Dict, Optional, Any
 from .version import __version__
 
@@ -41,6 +45,7 @@ class ServerSocket:
                 code=res.code,
                 error=error,
                 message=message,
+                payload=res.data,
             )
 
         return res
@@ -55,7 +60,12 @@ class ServerSocket:
         try:
             await self._recv()
         except ServerResponseError as e:
-            raise ServerLoginFailed("login token is not valid") from e
+            if e.code == 4:
+                assert e.payload
+                raise InvalidVersionError(
+                    f"server needs version {e.payload['needed']}, but you have {__version__}",  # noqa
+                )
+            raise ServerLoginError("login token is not valid") from e
 
         self._logged = True
 

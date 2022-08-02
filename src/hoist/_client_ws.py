@@ -55,7 +55,7 @@ class ServerSocket:
 
     async def login(self) -> None:
         try:
-            await self._send(
+            await self.send(
                 {
                     "token": self._token,
                     "version": __version__,
@@ -68,7 +68,10 @@ class ServerSocket:
                 raise InvalidVersionError(
                     f"server needs version {e.payload['needed']}, but you have {__version__}",  # noqa
                 )
-            raise ServerLoginError("login token is not valid") from e
+            if e.code == 3:
+                raise ServerLoginError("login token is not valid") from e
+
+            raise e  # we shouldnt ever get here
 
         self._logged = True
 
@@ -79,11 +82,11 @@ class ServerSocket:
 
     async def close(self) -> None:
         """Close the socket."""
-        await self._send({"end": True})
+        await self.send({"end": True})
         self._closed = True
 
     @overload
-    async def _send(
+    async def send(
         self,
         payload: Payload,
         *,
@@ -92,7 +95,7 @@ class ServerSocket:
         ...
 
     @overload
-    async def _send(
+    async def send(
         self,
         payload: Payload,
         *,
@@ -100,7 +103,7 @@ class ServerSocket:
     ) -> _Response:
         ...
 
-    async def _send(
+    async def send(
         self,
         payload: Payload,
         *,

@@ -61,3 +61,11 @@ class SchemaValidationError(Exception):
 
 class CloseSocket(Exception):
     """Close the socket."""
+
+
+class NotConnectedError(Exception):
+    """Socket is not connected to the server."""
+
+
+class InvalidOperationError(Exception):
+    """Operation was not found."""

@@ -13,6 +13,10 @@ from typing import (
 if TYPE_CHECKING:
     from yarl import URL
     from .server import Server
+    from asyncio import AbstractEventLoop
+    from aiohttp import ClientSession
+
+from typing_extensions import TypedDict
 
 _T = TypeVar("_T")
 
@@ -23,3 +27,8 @@ Operations = Dict[str, Operator]
 UrlLike = Union[str, "URL"]
 LoginFunc = Callable[["Server", str], Awaitable[bool]]
 ResponseErrors = Dict[int, Tuple[str, str]]
+
+
+class ConnectionKwargs(TypedDict, total=False):
+    loop: "AbstractEventLoop"
+    session: "ClientSession"

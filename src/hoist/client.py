@@ -3,7 +3,8 @@ from typing import Optional
 import asyncio
 from ._client_ws import ServerSocket
 from yarl import URL
-from ._typing import UrlLike
+from ._typing import UrlLike, Payload
+from .exceptions import NotConnectedError, ServerResponseError, InvalidOperationError
 
 __all__ = ("Connection",)
 
@@ -82,3 +83,28 @@ class Connection:
             loop.run_until_complete(coro)
         else:
             loop.create_task(coro)
+
+    async def _execute_operation(
+        self,
+        operation: str,
+        payload: Payload,
+    ) -> None:
+        if not self._ws:
+            raise NotConnectedError(
+                "not connected to websocket (did you forget to call connect?)"
+            )
+
+        try:
+            await self._ws.send(
+                {
+                    "operation": operation,
+                    "data": payload,
+                },
+                reply=True,
+            )
+        except ServerResponseError as e:
+            if e.code == 5:
+                raise InvalidOperationError(
+                    f'"{operation}" is not a valid operation'
+                ) from e
+            raise e

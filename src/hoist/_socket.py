@@ -1,9 +1,17 @@
 from starlette.websockets import WebSocket
 from starlette.datastructures import Address
 from ._logging import log
-from typing import Dict, Any, Tuple, Type, Union, Optional, NoReturn, List
+from typing import (
+    Any,
+    Optional,
+    NoReturn,
+    List,
+)
 import json
-from .exceptions import ClientError
+from .exceptions import ClientError, CloseSocket
+from ._typing import Payload, Schema, ResponseErrors
+from ._operations import verify_schema
+import logging
 
 __all__ = (
     "make_client_msg",
@@ -11,9 +19,7 @@ __all__ = (
     "Socket",
 )
 
-Schema = Dict[str, Union[Type[Any], Tuple[Type[Any], ...]]]
-
-ERRORS: Dict[int, Tuple[str, str]] = {
+ERRORS: ResponseErrors = {
     1: (
         "INVALID_JSON",
         "Invalid JSON structure was received.",
@@ -29,6 +35,10 @@ ERRORS: Dict[int, Tuple[str, str]] = {
     4: (
         "BAD_VERSION",
         "Version of client is not high enough.",
+    ),
+    5: (
+        "UNKNOWN_OPERATION",
+        "Operation not found.",
     ),
 }
 
@@ -79,7 +89,7 @@ class Socket:
         self,
         *,
         success: bool = True,
-        payload: Optional[Dict[str, Any]] = None,
+        payload: Optional[Payload] = None,
         code: int = 0,
         error: Optional[str] = None,
         message: Optional[str] = None,
@@ -101,7 +111,7 @@ class Socket:
         code: int,
         *,
         description: Optional[str] = None,
-        payload: Optional[Dict[str, Any]] = None,
+        payload: Optional[Payload] = None,
     ) -> NoReturn:
         err = ERRORS[code]
         error = err[0]
@@ -116,22 +126,31 @@ class Socket:
         )
         raise ClientError(code=code, error=error, message=message)
 
+    async def success(
+        self,
+        payload: Optional[Payload] = None,
+        *,
+        message: Optional[str] = None,
+    ) -> None:
+        await self._send(
+            code=0,
+            message=message,
+            payload=payload,
+        )
+
     async def recv(self, schema: Schema) -> List[Any]:
         try:
             load: dict = json.loads(await self.ws.receive_text())
         except json.JSONDecodeError:
             await self.error(1)
 
-        for key, typ in schema.items():
-            value = load.get(key)
-            vtype = type(value) if value is not None else None
+        if load.get("end"):
+            raise CloseSocket
 
-            if type(typ) is tuple:
-                if vtype not in typ:
-                    await self.error(2)
-
-            if vtype is not typ:
-                await self.error(2)
+        try:
+            verify_schema(schema, load)
+        except Exception:
+            await self.error(2)
 
         return [load[i] for i in schema]
 

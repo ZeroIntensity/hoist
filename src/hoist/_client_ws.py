@@ -4,8 +4,10 @@ from .exceptions import (
     ServerResponseError,
     InvalidVersionError,
 )
-from typing import NamedTuple, Dict, Optional, Any
+from typing import NamedTuple, Dict, Optional, Any, overload, Literal
 from .version import __version__
+from ._typing import Payload
+import asyncio
 
 __all__ = ("ServerSocket",)
 
@@ -28,6 +30,7 @@ class ServerSocket:
         self._ws = ws
         self._token = token
         self._logged: bool = False
+        self._closed: bool = False
 
     async def _recv(self) -> _Response:
         res = _Response(**await self._ws.receive_json())
@@ -51,14 +54,14 @@ class ServerSocket:
         return res
 
     async def login(self) -> None:
-        await self._ws.send_json(
-            {
-                "token": self._token,
-                "version": __version__,
-            }
-        )
         try:
-            await self._recv()
+            await self._send(
+                {
+                    "token": self._token,
+                    "version": __version__,
+                },
+                reply=True,
+            )
         except ServerResponseError as e:
             if e.code == 4:
                 assert e.payload
@@ -76,4 +79,34 @@ class ServerSocket:
 
     async def close(self) -> None:
         """Close the socket."""
-        await self._ws.close()
+        await self._send({"end": True})
+        self._closed = True
+
+    @overload
+    async def _send(
+        self,
+        payload: Payload,
+        *,
+        reply: Literal[False] = False,
+    ) -> Literal[None]:
+        ...
+
+    @overload
+    async def _send(
+        self,
+        payload: Payload,
+        *,
+        reply: Literal[True] = True,
+    ) -> _Response:
+        ...
+
+    async def _send(
+        self,
+        payload: Payload,
+        *,
+        reply: bool = False,
+    ) -> Optional[_Response]:
+        await self._ws.send_json(payload)
+
+        if reply:
+            await self._recv()

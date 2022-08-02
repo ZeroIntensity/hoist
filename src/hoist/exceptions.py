@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any
+from ._typing import Payload
 
 
 class _ResponseError(Exception):
@@ -8,7 +9,7 @@ class _ResponseError(Exception):
         code: int,
         error: str,
         message: str,
-        payload: Optional[Dict[str, Any]] = None,
+        payload: Optional[Payload] = None,
         **kwargs,
     ) -> None:
         self._code: int = code
@@ -52,3 +53,11 @@ class ClientError(_ResponseError):
 
 class InvalidVersionError(Exception):
     """Client version is not high enough for the server."""
+
+
+class SchemaValidationError(Exception):
+    """Schema validation failed."""
+
+
+class CloseSocket(Exception):
+    """Close the socket."""

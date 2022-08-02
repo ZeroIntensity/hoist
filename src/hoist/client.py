@@ -2,6 +2,8 @@ import aiohttp
 from typing import Optional
 import asyncio
 from ._client_ws import ServerSocket
+from yarl import URL
+from ._typing import UrlLike
 
 __all__ = ("Connection",)
 
@@ -11,7 +13,7 @@ class Connection:
 
     def __init__(
         self,
-        url: str,
+        url: UrlLike,
         token: Optional[str] = None,
         *,
         loop: Optional[asyncio.AbstractEventLoop] = None,
@@ -25,7 +27,7 @@ class Connection:
         self._ws: Optional[ServerSocket] = None
 
     @property
-    def url(self) -> str:
+    def url(self) -> UrlLike:
         """URL of the server."""
         return self._url
 
@@ -39,9 +41,13 @@ class Connection:
         """Whether the server is currently connected."""
         return self._connected
 
-    async def close(self) -> None:
+    async def _close(self) -> None:
         """Close the connection."""
         self._connected = False
+
+        if self._ws:
+            await self._ws.close()
+
         await self._session.close()
 
     async def connect(self, token: Optional[str] = None) -> None:
@@ -53,17 +59,26 @@ class Connection:
                 "no authentication token (did you forget to pass it?)",
             )
 
+        raw_url = self.url
+        url_obj = raw_url if isinstance(raw_url, URL) else URL(raw_url)
+
+        url = url_obj.with_scheme(
+            "wss" if url_obj.scheme == "https" else "ws",
+        ).with_path("/hoist")
+
         self._connected = True
         self._ws = ServerSocket(
-            await self._session._ws_connect(self.url),
+            await self._session._ws_connect(url),
             auth,
         )
         await self._ws.login()
 
     def __del__(self) -> None:
-        loop = asyncio.new_event_loop()
+        loop = self._loop
+        coro = self._close()
 
-        if self._ws:
-            loop.run_until_complete(self._ws.close())
-
-        loop.run_until_complete(self.close())
+        if loop.is_closed():
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(coro)
+        else:
+            loop.create_task(coro)

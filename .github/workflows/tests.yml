@@ -1,29 +1,29 @@
 name: Tests
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+    push:
+        branches:
+            - master
+    pull_request:
 concurrency: lint-${{ github.sha }}
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
+    lint:
+        runs-on: ubuntu-latest
 
-    env:
-      PYTHON_VERSION: "3.10"
+        env:
+            PYTHON_VERSION: "3.10"
 
-    steps:
-      # Checks out the repository in the current folder.
-      - name: Checkout
-        uses: actions/checkout@v3
+        steps:
+            # Checks out the repository in the current folder.
+            - name: Checkout
+              uses: actions/checkout@v3
 
-      # Set up the right version of Python
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v3
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+            # Set up the right version of Python
+            - name: Set up Python ${{ env.PYTHON_VERSION }}
+              uses: actions/setup-python@v3
+              with:
+                  python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Pre-commit hooks
-        uses: pre-commit/action@v3.0.0
+            - name: Pre-commit hooks
+              uses: pre-commit/action@v3.0.0

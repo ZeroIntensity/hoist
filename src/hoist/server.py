@@ -3,25 +3,20 @@ from starlette.responses import Response
 from starlette.types import Scope, Receive, Send
 from ._logging import log
 import uvicorn
-from typing import (
-    NoReturn,
-    Optional,
-    Sequence,
-    Union,
-    Callable,
-    Awaitable,
-)
+from typing import NoReturn, Optional, Sequence, Union
 from secrets import choice
 from string import ascii_letters
 import logging
 from ._socket import Socket, make_client_msg, ClientError, make_client
 from rich.console import Console
 from versions import Version, parse_version
+from ._operations import BASE_OPERATIONS, call_operation
+from ._typing import LoginFunc, Operations
+from .exceptions import CloseSocket, SchemaValidationError
 
 logging.getLogger("uvicorn.error").disabled = True
 logging.getLogger("uvicorn.access").disabled = True
 
-LoginFunc = Callable[["Server", str], Awaitable[bool]]
 print_exc = Console().print_exception
 
 
@@ -45,6 +40,7 @@ class Server:
         login_func: LoginFunc = _base_login,
         log_level: int = logging.INFO,
         minimum_version: Optional[Union[str, Version]] = None,
+        extra_operations: Optional[Operations] = None,
     ) -> None:
         self._token = token or "".join(
             [choice(default_token_choices) for _ in range(default_token_len)],
@@ -53,6 +49,7 @@ class Server:
         self._login_func = login_func
         logging.getLogger("hoist").setLevel(log_level)
         self._minimum_version = minimum_version
+        self._operations = {**BASE_OPERATIONS, **(extra_operations or {})}
 
     @property
     def token(self) -> str:
@@ -83,6 +80,8 @@ class Server:
         if not (await self._login_func(self, token)):
             await ws.error(3)
 
+        await ws.success()
+
         log(
             "login",
             f"{make_client(ws.address)} has successfully authenticated",  # noqa
@@ -95,6 +94,18 @@ class Server:
                     "data": dict,
                 }
             )
+
+            op = self._operations.get(operation)
+
+            if not op:
+                await ws.error(5)
+
+            try:
+                await call_operation(op, data)
+            except SchemaValidationError:
+                await ws.error(2)
+
+            await ws.success()
 
     async def _ws(self, ws: Socket) -> None:
         try:
@@ -114,6 +125,8 @@ class Server:
                     level=logging.ERROR,
                 )
                 await ws.close(1003)
+            elif isinstance(e, CloseSocket):
+                await ws.close(1000)
             else:
                 log(
                     "exception",

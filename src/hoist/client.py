@@ -5,9 +5,11 @@ import aiohttp
 from yarl import URL
 
 from ._client_ws import ServerSocket
+from ._errors import *
 from ._typing import Payload, UrlLike
 from .exceptions import (
-    InvalidOperationError, NotConnectedError, ServerResponseError
+    AlreadyConnectedError, InvalidActionError, NotConnectedError,
+    ServerResponseError
 )
 
 __all__ = ("Connection",)
@@ -57,6 +59,11 @@ class Connection:
 
     async def connect(self, token: Optional[str] = None) -> None:
         """Open the connection."""
+        if self.connected:
+            raise AlreadyConnectedError(
+                "already connected to socket",
+            )
+
         auth: Optional[str] = token or self.token
 
         if not auth:
@@ -88,10 +95,10 @@ class Connection:
         else:
             loop.create_task(coro)
 
-    async def _execute_operation(
+    async def _send(
         self,
-        operation: str,
-        payload: Payload,
+        action: str,
+        payload: Optional[Payload] = None,
     ) -> None:
         if not self._ws:
             raise NotConnectedError(
@@ -101,14 +108,26 @@ class Connection:
         try:
             await self._ws.send(
                 {
-                    "operation": operation,
-                    "data": payload,
+                    "action": action,
+                    "data": payload or {},
                 },
                 reply=True,
             )
         except ServerResponseError as e:
-            if e.code == 5:
-                raise InvalidOperationError(
-                    f'"{operation}" is not a valid operation'
-                ) from e
+            if e.code == INVALID_ACTION:
+                raise InvalidActionError(f'"{e}" is not a valid action')
             raise e
+
+    async def message(
+        self,
+        message: str,
+        data: Optional[Payload] = None,
+    ) -> None:
+        """Send a message to the server."""
+        await self._send(
+            "message",
+            {
+                "message": message,
+                "data": data or {},
+            },
+        )

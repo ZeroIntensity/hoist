@@ -70,3 +70,11 @@ class NotConnectedError(Exception):
 
 class InvalidOperationError(Exception):
     """Operation was not found."""
+
+
+class AlreadyConnectedError(Exception):
+    """Attempted to connect to the WebSocket twice."""
+
+
+class InvalidActionError(Exception):
+    """Invalid action was sent to the server."""

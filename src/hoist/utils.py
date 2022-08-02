@@ -26,7 +26,7 @@ def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
 async def connect(
     url: UrlLike,
     token: str,
-    **kwargs,
+    **kwargs: Any,
 ) -> Connection:
     """Connect to a Hoist server."""
     conn = Connection(url, token, **kwargs)

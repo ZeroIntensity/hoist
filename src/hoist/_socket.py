@@ -4,9 +4,10 @@ from typing import Any, List, NoReturn, Optional
 from starlette.datastructures import Address
 from starlette.websockets import WebSocket
 
+from ._errors import *
 from ._logging import log
 from ._operations import verify_schema
-from ._typing import Payload, ResponseErrors, Schema
+from ._typing import Payload, Schema
 from .exceptions import ClientError, CloseSocket
 
 __all__ = (
@@ -14,33 +15,6 @@ __all__ = (
     "make_client",
     "Socket",
 )
-
-ERRORS: ResponseErrors = {
-    1: (
-        "INVALID_JSON",
-        "Invalid JSON structure was received.",
-    ),
-    2: (
-        "INVALID_CONTENT",
-        "JSON content is invalid.",
-    ),
-    3: (
-        "LOGIN_FAILED",
-        "Login token is invalid.",
-    ),
-    4: (
-        "BAD_VERSION",
-        "Version of client is not high enough.",
-    ),
-    5: (
-        "UNKNOWN_OPERATION",
-        "Operation not found.",
-    ),
-    6: (
-        "SERVER_ERROR",
-        "Internal server error.",
-    ),
-}
 
 
 def make_client_msg(addr: Optional[Address], to: bool = False) -> str:
@@ -149,7 +123,7 @@ class Socket:
         try:
             load: dict = json.loads(await self.ws.receive_text())
         except json.JSONDecodeError:
-            await self.error(1)
+            await self.error(INVALID_JSON)
 
         if load.get("end"):
             raise CloseSocket
@@ -157,7 +131,7 @@ class Socket:
         try:
             verify_schema(schema, load)
         except Exception:
-            await self.error(2)
+            await self.error(INVALID_CONTENT)
 
         return [load[i] for i in schema]
 

@@ -2,7 +2,10 @@ import logging
 from contextlib import suppress
 from secrets import choice
 from string import ascii_letters
-from typing import NoReturn, Optional, Sequence, Union
+from typing import (
+    Any, List, NoReturn, Optional, Sequence, Tuple, TypeVar, Union,
+    get_type_hints
+)
 
 import uvicorn
 from rich.console import Console
@@ -11,10 +14,14 @@ from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from versions import Version, parse_version
 
+from ._errors import *
 from ._logging import log
-from ._operations import BASE_OPERATIONS, call_operation
+from ._operations import BASE_OPERATIONS, call_operation, verify_schema
 from ._socket import ClientError, Socket, make_client, make_client_msg
-from ._typing import LoginFunc, Operations
+from ._typing import (
+    DataclassLike, Listener, LoginFunc, MessageListeners, Operations, Payload,
+    Schema, Type
+)
 from .exceptions import CloseSocket, SchemaValidationError
 
 logging.getLogger("uvicorn.error").disabled = True
@@ -24,6 +31,8 @@ print_exc = Console().print_exception
 
 
 __all__ = ("Server",)
+
+T = TypeVar("T", bound=DataclassLike)
 
 
 async def _base_login(server: "Server", sent_token: str) -> bool:
@@ -44,6 +53,9 @@ class Server:
         log_level: int = logging.INFO,
         minimum_version: Optional[Union[str, Version]] = None,
         extra_operations: Optional[Operations] = None,
+        unsupported_operations: Optional[List[str]] = None,
+        supported_operations: Optional[List[str]] = None,
+        extra_listeners: Optional[MessageListeners] = None,
     ) -> None:
         self._token = token or "".join(
             [choice(default_token_choices) for _ in range(default_token_len)],
@@ -53,11 +65,142 @@ class Server:
         logging.getLogger("hoist").setLevel(log_level)
         self._minimum_version = minimum_version
         self._operations = {**BASE_OPERATIONS, **(extra_operations or {})}
+        self._supported_operations: List[str] = supported_operations or ["*"]
+        self._unsupported_operations: List[str] = unsupported_operations or []
+
+        self._verify_operations()
+        self._message_listeners: MessageListeners = {**(extra_listeners or {})}
+
+    @property
+    def message_listeners(self) -> MessageListeners:
+        """Listener function for messages."""
+        return self._message_listeners
+
+    @property
+    def supported_operations(self) -> List[str]:
+        """Operations supported by the server."""
+        return self._supported_operations
+
+    @property
+    def unsupported_operations(self) -> List[str]:
+        """Operations blacklisted by the server."""
+        return self._unsupported_operations
+
+    def _verify_operations(self) -> None:
+        so = self.supported_operations
+        uo = self.unsupported_operations
+
+        if "*" in so:
+            if len(so) > 1:
+                raise ValueError(
+                    '"*" should be the only operation',
+                )
+            return
+
+        for i in so:
+            if i in uo:
+                raise ValueError(
+                    f'operation "{i}" is both supported and unsupported',
+                )
+
+    async def _verify_operation(  # not sure if i need async here
+        self, operation: str
+    ) -> bool:
+        so = self.supported_operations
+        uo = self.unsupported_operations
+
+        if operation in uo:
+            return False
+
+        if "*" in so:
+            return not (operation in uo)
+
+        return not (operation not in self.supported_operations)
 
     @property
     def token(self) -> str:
         """Authentication token used to connect."""
         return self._token
+
+    async def _call_listeners(
+        self,
+        message: str,
+        payload: Payload,
+    ) -> None:
+        listeners = self.message_listeners.get(message)
+
+        for i in listeners or ():
+            func = i[0]
+            param: Union[Type[DataclassLike], Schema] = i[1]
+            is_schema: bool = isinstance(param, dict)
+
+            schema: Any = param if is_schema else get_type_hints(param)
+            verify_schema(schema, payload)
+
+            await func(
+                payload if is_schema else param(**payload),  # type: ignore
+            )
+
+    @staticmethod
+    async def _handle_schema(
+        ws: Socket,
+        payload: Payload,
+        schema: Schema,
+    ) -> List[Any]:
+        try:
+            verify_schema(
+                schema,
+                payload,
+            )
+        except SchemaValidationError:
+            await ws.error(INVALID_CONTENT)
+
+        return [payload[i] for i in schema]
+
+    async def _process_operation(self, ws: Socket, payload: Payload) -> None:
+        operation, data = await self._handle_schema(
+            ws,
+            payload,
+            {
+                "operation": str,
+                "data": dict,
+            },
+        )
+
+        op = self._operations.get(operation)
+
+        if not op:
+            await ws.error(UNKNOWN_OPERATION)
+
+        if not (await self._verify_operation(operation)):
+            await ws.error(UNSUPPORTED_OPERATION)
+
+        try:
+            await call_operation(op, data)
+        except SchemaValidationError:
+            await ws.error(INVALID_CONTENT)
+
+        await ws.success()
+
+    async def _process_message(self, ws: Socket, payload: Payload) -> None:
+        message, data = await self._handle_schema(
+            ws,
+            payload,
+            {
+                "message": str,
+                "data": dict,
+            },
+        )
+
+        try:
+            await self._call_listeners(message, data)
+        except Exception as e:
+            if isinstance(e, SchemaValidationError):
+                await ws.error(INVALID_CONTENT)
+
+            await ws.error(SERVER_ERROR)
+
+        await ws.success()
 
     async def _ws_wrapper(self, ws: Socket) -> None:
         version, token = await ws.recv(
@@ -78,12 +221,12 @@ class Server:
 
             if not (parse_version(version) >= minver_actual):
                 await ws.error(
-                    4,
+                    BAD_VERSION,
                     payload={"needed": minver_actual.to_string()},
                 )
 
         if not (await self._login_func(self, token)):
-            await ws.error(3)
+            await ws.error(LOGIN_FAILED)
 
         await ws.success()
 
@@ -93,24 +236,20 @@ class Server:
         )
 
         while True:
-            operation, data = await ws.recv(
+            data: Payload
+            action, data = await ws.recv(
                 {
-                    "operation": str,
+                    "action": str,
                     "data": dict,
                 }
             )
 
-            op = self._operations.get(operation)
-
-            if not op:
-                await ws.error(5)
-
-            try:
-                await call_operation(op, data)
-            except SchemaValidationError:
-                await ws.error(2)
-
-            await ws.success()
+            if action == "operation":
+                await self._process_operation(ws, data)
+            elif action == "message":
+                await self._process_message(ws, data)
+            else:
+                await ws.error(INVALID_ACTION)
 
     async def _ws(self, ws: Socket) -> None:
         try:
@@ -141,7 +280,7 @@ class Server:
                 print_exc(show_locals=True)
 
                 with suppress(ClientError):
-                    await ws.error(6)
+                    await ws.error(SERVER_ERROR)
 
     def start(  # type: ignore
         self,
@@ -176,7 +315,11 @@ class Server:
 
                         return await self._ws(obj)
 
-                    response = Response("Not found.", media_type="text/plain")
+                    response = Response(
+                        "Not found.",
+                        media_type="text/plain",
+                        status_code=404,
+                    )
                     await response(scope, receive, send)
 
         tokmsg: str = (
@@ -188,4 +331,28 @@ class Server:
             "start",
             f"server running on [bold cyan]{host}:{port}[/]{tokmsg}",
         )
-        uvicorn.run(_app, host=host, port=port, lifespan="on")
+
+        try:
+            uvicorn.run(_app, host=host, port=port, lifespan="on")
+        except RuntimeError as e:
+            raise RuntimeError(
+                "server cannot start from a running event loop",
+            ) from e
+
+    def receive(
+        self,
+        message: Optional[Union[str, Tuple[str, ...]]] = None,
+        parameter: Optional[Union[Schema, T]] = None,
+    ):
+        """Add a listener for message receiving."""
+
+        def decorator(func: Listener):
+            listeners = self.message_listeners
+            value = (func, (parameter or {}))
+
+            if message in listeners:
+                listeners[message].append(value)
+            else:
+                listeners[message] = [value]
+
+        return decorator

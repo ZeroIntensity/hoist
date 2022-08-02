@@ -348,7 +348,15 @@ class Server:
 
         def decorator(func: Listener):
             listeners = self.message_listeners
-            value = (func, (parameter or {}))
+
+            param = parameter
+
+            if not param:
+                hints = get_type_hints(func)
+                if hints:
+                    param = hints[tuple(hints.keys())[0]]
+
+            value = (func, (param or {}))
 
             if message in listeners:
                 listeners[message].append(value)

@@ -34,7 +34,7 @@ def verify_schema(schema: Schema, data: Payload) -> None:
 async def call_operation(op: Operator[T], payload: Payload) -> None:
     """Call an operation."""
     hints = get_type_hints(op)
-    cl: Type[T] = hints[list(hints.keys())[0]]
+    cl: Type[T] = hints[tuple(hints.keys())[0]]
 
     verify_schema(get_type_hints(cl), payload)
     await op(cl(**payload))

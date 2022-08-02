@@ -1,17 +1,13 @@
-from starlette.websockets import WebSocket
-from starlette.datastructures import Address
-from ._logging import log
-from typing import (
-    Any,
-    Optional,
-    NoReturn,
-    List,
-)
 import json
-from .exceptions import ClientError, CloseSocket
-from ._typing import Payload, Schema, ResponseErrors
+from typing import Any, List, NoReturn, Optional
+
+from starlette.datastructures import Address
+from starlette.websockets import WebSocket
+
+from ._logging import log
 from ._operations import verify_schema
-import logging
+from ._typing import Payload, ResponseErrors, Schema
+from .exceptions import ClientError, CloseSocket
 
 __all__ = (
     "make_client_msg",
@@ -40,15 +36,21 @@ ERRORS: ResponseErrors = {
         "UNKNOWN_OPERATION",
         "Operation not found.",
     ),
+    6: (
+        "SERVER_ERROR",
+        "Internal server error.",
+    ),
 }
 
 
 def make_client_msg(addr: Optional[Address], to: bool = False) -> str:
+    """Create a client message."""
     target: str = "from" if not to else "to"
     return f" {target} [bold cyan]{addr.host}:{addr.port}[/]" if addr else ""
 
 
 def make_client(addr: Optional[Address]) -> str:
+    """Make a client string."""
     return f"[bold cyan]{addr.host}:{addr.port}[/]" if addr else "client"
 
 
@@ -63,6 +65,7 @@ class Socket:
         self._logged: bool = False
 
     async def connect(self) -> None:
+        """Establish the WebSocket connection."""
         ws = self._ws
         await ws.accept()
 
@@ -82,7 +85,7 @@ class Socket:
         return self._logged
 
     @logged.setter
-    def logger(self, value: bool) -> None:
+    def logged(self, value: bool) -> None:
         self._logged = value
 
     async def _send(
@@ -95,6 +98,7 @@ class Socket:
         message: Optional[str] = None,
         desc: Optional[str] = None,
     ) -> None:
+        """Send a message to the client."""
         await self.ws.send_json(
             {
                 "success": success,
@@ -113,6 +117,7 @@ class Socket:
         description: Optional[str] = None,
         payload: Optional[Payload] = None,
     ) -> NoReturn:
+        """Send an error to the client."""
         err = ERRORS[code]
         error = err[0]
         message = err[1]
@@ -132,6 +137,7 @@ class Socket:
         *,
         message: Optional[str] = None,
     ) -> None:
+        """Send a success to the client."""
         await self._send(
             code=0,
             message=message,
@@ -139,6 +145,7 @@ class Socket:
         )
 
     async def recv(self, schema: Schema) -> List[Any]:
+        """Receive a message from the client."""
         try:
             load: dict = json.loads(await self.ws.receive_text())
         except json.JSONDecodeError:
@@ -155,9 +162,11 @@ class Socket:
         return [load[i] for i in schema]
 
     async def recv_only(self, schema: Schema) -> Any:
+        """Receive a single key from the client."""
         return (await self.recv(schema))[0]
 
     async def close(self, code: int) -> None:
+        """Gracefully close the connection."""
         await self.ws.close(code)
         log(
             "disconnect",

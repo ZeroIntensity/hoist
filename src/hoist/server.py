@@ -1,16 +1,19 @@
-from starlette.websockets import WebSocket, WebSocketDisconnect
-from starlette.responses import Response
-from starlette.types import Scope, Receive, Send
-from ._logging import log
-import uvicorn
-from typing import NoReturn, Optional, Sequence, Union
+import logging
+from contextlib import suppress
 from secrets import choice
 from string import ascii_letters
-import logging
-from ._socket import Socket, make_client_msg, ClientError, make_client
+from typing import NoReturn, Optional, Sequence, Union
+
+import uvicorn
 from rich.console import Console
+from starlette.responses import Response
+from starlette.types import Receive, Scope, Send
+from starlette.websockets import WebSocket, WebSocketDisconnect
 from versions import Version, parse_version
+
+from ._logging import log
 from ._operations import BASE_OPERATIONS, call_operation
+from ._socket import ClientError, Socket, make_client, make_client_msg
 from ._typing import LoginFunc, Operations
 from .exceptions import CloseSocket, SchemaValidationError
 
@@ -68,7 +71,9 @@ class Server:
 
         if minver:
             minver_actual = (
-                minver if isinstance(minver, Version) else parse_version(minver)
+                minver
+                if isinstance(minver, Version)
+                else parse_version(minver)  # fmt: off
             )
 
             if not (parse_version(version) >= minver_actual):
@@ -135,7 +140,10 @@ class Server:
                 )
                 print_exc(show_locals=True)
 
-    def start(
+                with suppress(ClientError):
+                    await ws.error(6)
+
+    def start(  # type: ignore
         self,
         *,
         host: str = "0.0.0.0",
@@ -154,7 +162,10 @@ class Server:
                 path: str = scope["path"]
 
                 if typ == "http":
-                    response = Response("Hello, world!", media_type="text/plain")
+                    response = Response(
+                        "Hello, world!",
+                        media_type="text/plain",
+                    )
                     await response(scope, receive, send)
 
                 if typ == "websocket":

@@ -1,5 +1,6 @@
-from ._typing import Operations, Schema, Payload, Operator
-from typing import NamedTuple, get_type_hints, TypeVar, Type
+from typing import NamedTuple, Type, TypeVar, get_type_hints
+
+from ._typing import Operations, Operator, Payload, Schema
 from .exceptions import SchemaValidationError
 
 T = TypeVar("T")
@@ -31,6 +32,7 @@ def verify_schema(schema: Schema, data: Payload) -> None:
 
 
 async def call_operation(op: Operator[T], payload: Payload) -> None:
+    """Call an operation."""
     hints = get_type_hints(op)
     cl: Type[T] = hints[list(hints.keys())[0]]
 

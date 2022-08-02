@@ -1,7 +1,9 @@
-import click
-from .server import Server
 from typing import Optional
+
+import click
 from rich import print
+
+from .server import Server
 from .version import __version__
 
 
@@ -63,6 +65,7 @@ def main(
     default_len: int,
     version: bool,
 ) -> None:
+    """CLI entry point."""
     if version:
         return print(f"[bold cyan]Hoist {__version__}[/]")
 

@@ -1,6 +1,7 @@
 import logging
-from rich.logging import RichHandler
 from typing import Dict
+
+from rich.logging import RichHandler
 from typing_extensions import Final
 
 __all__ = ("log",)
@@ -16,6 +17,7 @@ _COLORS: Final[Dict[int, str]] = {
 
 
 def setup_logging() -> None:
+    """Set up logging."""
     logging.basicConfig(
         level="INFO",
         format=_FORMAT,
@@ -35,6 +37,7 @@ logger = logging.getLogger("hoist")
 
 
 def log(key: str, value: str, *, level: int = logging.INFO) -> None:
+    """Log a rich message."""
     logger.log(
         level,
         f"[{_COLORS[level]}]{key}:[/] {value}",

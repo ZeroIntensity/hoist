@@ -1,10 +1,11 @@
-from rich.console import Console
-from typing import Any, Callable, Coroutine
 import asyncio
 import inspect
-from ._typing import UrlLike, ConnectionKwargs
+from typing import Any, Callable, Coroutine
+
+from rich.console import Console
+
+from ._typing import UrlLike
 from .client import Connection
-from typing_extensions import Unpack
 
 print_exc = Console().print_exception
 
@@ -25,7 +26,7 @@ def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
 async def connect(
     url: UrlLike,
     token: str,
-    **kwargs: Unpack[ConnectionKwargs],
+    **kwargs,
 ) -> Connection:
     """Connect to a Hoist server."""
     conn = Connection(url, token, **kwargs)

@@ -1,13 +1,12 @@
+from typing import Any, Dict, Literal, NamedTuple, Optional, overload
+
 from aiohttp import ClientWebSocketResponse
-from .exceptions import (
-    ServerLoginError,
-    ServerResponseError,
-    InvalidVersionError,
-)
-from typing import NamedTuple, Dict, Optional, Any, overload, Literal
-from .version import __version__
+
 from ._typing import Payload
-import asyncio
+from .exceptions import (
+    InvalidVersionError, ServerLoginError, ServerResponseError
+)
+from .version import __version__
 
 __all__ = ("ServerSocket",)
 
@@ -22,6 +21,8 @@ class _Response(NamedTuple):
 
 
 class ServerSocket:
+    """Class for handling a WebSocket connection to a server."""
+
     def __init__(
         self,
         ws: ClientWebSocketResponse,
@@ -54,6 +55,7 @@ class ServerSocket:
         return res
 
     async def login(self) -> None:
+        """Send login message to the server."""
         try:
             await self.send(
                 {
@@ -86,12 +88,13 @@ class ServerSocket:
         self._closed = True
 
     @overload
-    async def send(
+    async def send(  # type: ignore
         self,
         payload: Payload,
         *,
         reply: Literal[False] = False,
     ) -> Literal[None]:
+        """Send a message to the server."""
         ...
 
     @overload
@@ -101,6 +104,7 @@ class ServerSocket:
         *,
         reply: Literal[True] = True,
     ) -> _Response:
+        """Send a message to the server."""
         ...
 
     async def send(
@@ -109,7 +113,10 @@ class ServerSocket:
         *,
         reply: bool = False,
     ) -> Optional[_Response]:
+        """Send a message to the server."""
         await self._ws.send_json(payload)
 
         if reply:
-            await self._recv()
+            return await self._recv()
+
+        return None

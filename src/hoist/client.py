@@ -1,10 +1,14 @@
-import aiohttp
-from typing import Optional
 import asyncio
-from ._client_ws import ServerSocket
+from typing import Optional
+
+import aiohttp
 from yarl import URL
-from ._typing import UrlLike, Payload
-from .exceptions import NotConnectedError, ServerResponseError, InvalidOperationError
+
+from ._client_ws import ServerSocket
+from ._typing import Payload, UrlLike
+from .exceptions import (
+    InvalidOperationError, NotConnectedError, ServerResponseError
+)
 
 __all__ = ("Connection",)
 

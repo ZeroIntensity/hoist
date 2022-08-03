@@ -32,7 +32,8 @@ UrlLike = Union[str, "URL"]
 LoginFunc = Callable[["Server", str], Awaitable[bool]]
 ResponseErrors = Dict[int, Tuple[str, str]]
 Listener = Callable[[_T], Awaitable[None]]
+ListenerData = Tuple[Listener[_A], Union[_A, Schema]]
 MessageListeners = Dict[
     Optional[Union[Tuple[str, ...], str]],
-    List[Tuple[Listener[_A], Union[_A, Schema]]],
+    List[ListenerData[_A]],
 ]

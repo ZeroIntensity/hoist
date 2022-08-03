@@ -1,6 +1,6 @@
 import logging
 from contextlib import suppress
-from secrets import choice
+from secrets import choice, compare_digest
 from string import ascii_letters
 from typing import (
     Any, List, NoReturn, Optional, Sequence, Tuple, TypeVar, Union,
@@ -19,8 +19,8 @@ from ._logging import log
 from ._operations import BASE_OPERATIONS, call_operation, verify_schema
 from ._socket import ClientError, Socket, make_client, make_client_msg
 from ._typing import (
-    DataclassLike, Listener, LoginFunc, MessageListeners, Operations, Payload,
-    Schema, Type
+    DataclassLike, Listener, ListenerData, LoginFunc, MessageListeners,
+    Operations, Payload, Schema
 )
 from .exceptions import CloseSocket, SchemaValidationError
 
@@ -36,7 +36,24 @@ T = TypeVar("T", bound=DataclassLike)
 
 
 async def _base_login(server: "Server", sent_token: str) -> bool:
-    return server.token == sent_token
+    return compare_digest(server.token, sent_token)
+
+
+async def _process_listeners(
+    listeners: Optional[List[ListenerData]],
+    payload: Payload,
+) -> None:
+    for i in listeners or ():
+        func = i[0]
+        param = i[1]
+        is_schema: bool = isinstance(param, dict)
+
+        schema: Any = param if is_schema else get_type_hints(param)
+        verify_schema(schema, payload)
+
+        await func(
+            payload if is_schema else param(**payload),  # type: ignore
+        )
 
 
 class Server:
@@ -127,19 +144,12 @@ class Server:
         message: str,
         payload: Payload,
     ) -> None:
-        listeners = self.message_listeners.get(message)
+        ml = self.message_listeners
+        listeners = ml.get(message)
+        await _process_listeners(listeners, payload)
 
-        for i in listeners or ():
-            func = i[0]
-            param: Union[Type[DataclassLike], Schema] = i[1]
-            is_schema: bool = isinstance(param, dict)
-
-            schema: Any = param if is_schema else get_type_hints(param)
-            verify_schema(schema, payload)
-
-            await func(
-                payload if is_schema else param(**payload),  # type: ignore
-            )
+        glbl = ml.get(None)
+        await _process_listeners(glbl, payload)
 
     @staticmethod
     async def _handle_schema(

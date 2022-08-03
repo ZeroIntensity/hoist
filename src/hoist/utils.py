@@ -1,13 +1,21 @@
 import asyncio
 import inspect
-from typing import Any, Callable, Coroutine
+from threading import Thread
+from typing import Any, Callable, Coroutine, Optional
 
 from rich.console import Console
 
 from ._typing import UrlLike
 from .client import Connection
+from .server import Server
 
 print_exc = Console().print_exception
+
+__all__ = (
+    "main",
+    "connect",
+    "start",
+)
 
 
 def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
@@ -32,3 +40,24 @@ async def connect(
     conn = Connection(url, token, **kwargs)
     await conn.connect()
     return conn
+
+
+def start(
+    token: Optional[str] = None,
+    server: Optional[Server] = None,
+    *,
+    host: str = "0.0.0.0",
+    port: int = 5000,
+    **kwargs,
+) -> Server:
+    """Start a Hoist server in a new thread."""
+    srv = server or Server(token, *kwargs)
+    t = Thread(
+        target=srv.start,
+        kwargs={
+            "host": host,
+            "port": port,
+        },
+    )
+    t.start()
+    return srv

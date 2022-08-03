@@ -51,13 +51,13 @@ def start(
     **kwargs,
 ) -> Server:
     """Start a Hoist server in a new thread."""
-    srv = server or Server(token, *kwargs)
+    srvr = server or Server(token, *kwargs)
     t = Thread(
-        target=srv.start,
+        target=srvr.start,
         kwargs={
             "host": host,
             "port": port,
         },
     )
     t.start()
-    return srv
+    return srvr

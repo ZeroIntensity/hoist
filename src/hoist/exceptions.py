@@ -53,7 +53,7 @@ class ClientError(_ResponseError):
 
 
 class InvalidVersionError(Exception):
-    """Client version is not high enough for the server."""
+    """Version is not high enough."""
 
 
 class SchemaValidationError(Exception):

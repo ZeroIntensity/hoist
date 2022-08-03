@@ -1,19 +1,25 @@
-from typing import Any, Dict, Literal, NamedTuple, Optional, overload
+import asyncio
+from typing import TYPE_CHECKING, Literal, NamedTuple, Optional, overload
 
 from aiohttp import ClientWebSocketResponse
 
-from ._typing import Payload
+from ._messages import NEW_MESSAGE
+from ._typing import Payload, TransportMessageListener
 from .exceptions import (
     InvalidVersionError, ServerLoginError, ServerResponseError
 )
+from .message_socket import MessageSocket
 from .version import __version__
+
+if TYPE_CHECKING:
+    from .client import Connection
 
 __all__ = ("ServerSocket",)
 
 
 class _Response(NamedTuple):
     success: bool
-    data: Optional[Dict[str, Any]]
+    data: Optional[Payload]
     error: Optional[str]
     message: Optional[str]
     desc: Optional[str]
@@ -25,6 +31,7 @@ class ServerSocket:
 
     def __init__(
         self,
+        client: "Connection",
         ws: ClientWebSocketResponse,
         token: str,
     ) -> None:
@@ -32,9 +39,12 @@ class ServerSocket:
         self._token = token
         self._logged: bool = False
         self._closed: bool = False
+        self._message_listener: Optional[TransportMessageListener] = None
+        self._queue = asyncio.Queue[_Response]()
+        self._client = client
 
     async def _recv(self) -> _Response:
-        res = _Response(**await self._ws.receive_json())
+        res = await self._queue.get()
 
         code = res.code
         error = res.error
@@ -54,8 +64,30 @@ class ServerSocket:
 
         return res
 
-    async def login(self) -> None:
+    async def _listener(self):
+        while True:
+            res = _Response(**await self._ws.receive_json())
+            listener = self._message_listener
+            data = res.data
+
+            if res.message == NEW_MESSAGE:
+                assert listener
+                assert data
+
+                await listener(
+                    MessageSocket(self._client),
+                    data["message"],
+                    data["data"],
+                )
+                continue
+
+            await self._queue.put(res)
+
+    async def login(self, listener: TransportMessageListener) -> None:
         """Send login message to the server."""
+        self._message_listener = listener
+        asyncio.create_task(self._listener())
+
         try:
             await self.send(
                 {
@@ -84,7 +116,8 @@ class ServerSocket:
 
     async def close(self) -> None:
         """Close the socket."""
-        await self.send({"end": True})
+        if not self._ws.closed:
+            await self.send({"end": True})
         self._closed = True
 
     @overload

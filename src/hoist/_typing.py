@@ -6,15 +6,17 @@ from typing import (
 from typing_extensions import Protocol
 
 if TYPE_CHECKING:
+    from versions import Version
     from yarl import URL
 
+    from .message_socket import MessageSocket
     from .server import Server
 
 _T = TypeVar("_T")
 
 
 class DataclassLike(Protocol):
-    """Dataclass-like protocol."""
+    """Protocol representing a dataclass-like object."""
 
     __annotations__: Dict[str, Any]
 
@@ -31,9 +33,28 @@ Operations = Dict[str, Operator]
 UrlLike = Union[str, "URL"]
 LoginFunc = Callable[["Server", str], Awaitable[bool]]
 ResponseErrors = Dict[int, Tuple[str, str]]
-Listener = Callable[[_T], Awaitable[None]]
+Listener = Callable[["MessageSocket", _T], Awaitable[None]]
 ListenerData = Tuple[Listener[_A], Union[_A, Schema]]
 MessageListeners = Dict[
     Optional[Union[Tuple[str, ...], str]],
     List[ListenerData[_A]],
+]
+VersionLike = Union[str, "Version"]
+
+
+class Messagable(Protocol):
+    """Protocol representing a messagable target."""
+
+    async def message(
+        self,
+        msg: str,
+        data: Optional[Payload] = None,
+    ) -> None:
+        """Send a message."""
+        ...
+
+
+TransportMessageListener = Callable[
+    [Messagable, str, Payload],
+    Awaitable[None],
 ]

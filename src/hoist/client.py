@@ -2,20 +2,22 @@ import asyncio
 from typing import Optional
 
 import aiohttp
+from versions import Version, parse_version
 from yarl import URL
 
 from ._client_ws import ServerSocket
 from ._errors import *
-from ._typing import Payload, UrlLike
+from ._messages import MessageListener
+from ._typing import MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
-    AlreadyConnectedError, InvalidActionError, NotConnectedError,
-    ServerResponseError
+    AlreadyConnectedError, InvalidActionError, InvalidVersionError,
+    NotConnectedError, ServerResponseError
 )
 
 __all__ = ("Connection",)
 
 
-class Connection:
+class Connection(MessageListener):
     """Class handling a connection to a server."""
 
     def __init__(
@@ -25,6 +27,8 @@ class Connection:
         *,
         loop: Optional[asyncio.AbstractEventLoop] = None,
         session: Optional[aiohttp.ClientSession] = None,
+        extra_listeners: Optional[MessageListeners] = None,
+        minimum_version: Optional[VersionLike] = None,
     ) -> None:
         self._url = url
         self._token: Optional[str] = token
@@ -32,6 +36,8 @@ class Connection:
         self._loop = loop or asyncio.get_event_loop()
         self._session = session or aiohttp.ClientSession(loop=self._loop)
         self._ws: Optional[ServerSocket] = None
+        self._minimum_version = minimum_version
+        super().__init__(extra_listeners)
 
     @property
     def url(self) -> UrlLike:
@@ -57,12 +63,40 @@ class Connection:
 
         await self._session.close()
 
+    async def _ack(self, url: URL) -> None:
+        async with self._session.get(url.with_path("/hoist/ack")) as response:
+            json = await response.json()
+
+            version: str = json["version"]
+            minver = self._minimum_version
+
+            if minver:
+                minver_actual = (
+                    minver
+                    if isinstance(minver, Version)
+                    else parse_version(minver)  # fmt: off
+                )
+
+                if not (parse_version(version) >= minver_actual):
+                    raise InvalidVersionError(
+                        f"server has version {version}, but required is {minver_actual.to_string()}",  # noqa
+                    )
+
     async def connect(self, token: Optional[str] = None) -> None:
         """Open the connection."""
         if self.connected:
             raise AlreadyConnectedError(
                 "already connected to socket",
             )
+
+        raw_url = self.url
+        url_obj = raw_url if isinstance(raw_url, URL) else URL(raw_url)
+
+        await self._ack(url_obj)
+
+        url = url_obj.with_scheme(
+            "wss" if url_obj.scheme == "https" else "ws",
+        ).with_path("/hoist")
 
         auth: Optional[str] = token or self.token
 
@@ -71,19 +105,13 @@ class Connection:
                 "no authentication token (did you forget to pass it?)",
             )
 
-        raw_url = self.url
-        url_obj = raw_url if isinstance(raw_url, URL) else URL(raw_url)
-
-        url = url_obj.with_scheme(
-            "wss" if url_obj.scheme == "https" else "ws",
-        ).with_path("/hoist")
-
         self._connected = True
         self._ws = ServerSocket(
+            self,
             await self._session._ws_connect(url),
             auth,
         )
-        await self._ws.login()
+        await self._ws.login(self._call_listeners)
 
     def __del__(self) -> None:
         loop = self._loop
@@ -120,14 +148,14 @@ class Connection:
 
     async def message(
         self,
-        message: str,
+        msg: str,
         data: Optional[Payload] = None,
     ) -> None:
         """Send a message to the server."""
         await self._send(
             "message",
             {
-                "message": message,
+                "message": msg,
                 "data": data or {},
             },
         )

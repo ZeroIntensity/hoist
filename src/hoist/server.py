@@ -2,27 +2,25 @@ import logging
 from contextlib import suppress
 from secrets import choice, compare_digest
 from string import ascii_letters
-from typing import (
-    Any, List, NoReturn, Optional, Sequence, Tuple, TypeVar, Union,
-    get_type_hints
-)
+from typing import Any, List, NoReturn, Optional, Sequence, Union
 
 import uvicorn
 from rich.console import Console
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from versions import Version, parse_version
 
 from ._errors import *
 from ._logging import log
+from ._messages import NEW_MESSAGE, MessageListener
 from ._operations import BASE_OPERATIONS, call_operation, verify_schema
 from ._socket import ClientError, Socket, make_client, make_client_msg
 from ._typing import (
-    DataclassLike, Listener, ListenerData, LoginFunc, MessageListeners,
-    Operations, Payload, Schema
+    LoginFunc, MessageListeners, Operations, Payload, Schema, VersionLike
 )
 from .exceptions import CloseSocket, SchemaValidationError
+from .version import __version__
 
 logging.getLogger("uvicorn.error").disabled = True
 logging.getLogger("uvicorn.access").disabled = True
@@ -32,31 +30,31 @@ print_exc = Console().print_exception
 
 __all__ = ("Server",)
 
-T = TypeVar("T", bound=DataclassLike)
-
 
 async def _base_login(server: "Server", sent_token: str) -> bool:
     return compare_digest(server.token, sent_token)
 
 
-async def _process_listeners(
-    listeners: Optional[List[ListenerData]],
-    payload: Payload,
-) -> None:
-    for i in listeners or ():
-        func = i[0]
-        param = i[1]
-        is_schema: bool = isinstance(param, dict)
+class _SocketMessageTransport:
+    def __init__(self, ws: Socket) -> None:
+        self._ws = ws
 
-        schema: Any = param if is_schema else get_type_hints(param)
-        verify_schema(schema, payload)
-
-        await func(
-            payload if is_schema else param(**payload),  # type: ignore
+    async def message(
+        self,
+        msg: str,
+        data: Optional[Payload] = None,
+    ) -> None:
+        """Send a message to the client."""
+        await self._ws.success(
+            message=NEW_MESSAGE,
+            payload={
+                "message": msg,
+                "data": data or {},
+            },
         )
 
 
-class Server:
+class Server(MessageListener):
     """Class for handling a server."""
 
     def __init__(
@@ -68,7 +66,7 @@ class Server:
         hide_token: bool = False,
         login_func: LoginFunc = _base_login,
         log_level: int = logging.INFO,
-        minimum_version: Optional[Union[str, Version]] = None,
+        minimum_version: Optional[VersionLike] = None,
         extra_operations: Optional[Operations] = None,
         unsupported_operations: Optional[List[str]] = None,
         supported_operations: Optional[List[str]] = None,
@@ -82,16 +80,9 @@ class Server:
         logging.getLogger("hoist").setLevel(log_level)
         self._minimum_version = minimum_version
         self._operations = {**BASE_OPERATIONS, **(extra_operations or {})}
-        self._supported_operations: List[str] = supported_operations or ["*"]
-        self._unsupported_operations: List[str] = unsupported_operations or []
-
-        self._verify_operations()
-        self._message_listeners: MessageListeners = {**(extra_listeners or {})}
-
-    @property
-    def message_listeners(self) -> MessageListeners:
-        """Listener function for messages."""
-        return self._message_listeners
+        self._supported_operations = supported_operations or ["*"]
+        self._unsupported_operations = unsupported_operations or []
+        super().__init__(extra_listeners)
 
     @property
     def supported_operations(self) -> List[str]:
@@ -138,18 +129,6 @@ class Server:
     def token(self) -> str:
         """Authentication token used to connect."""
         return self._token
-
-    async def _call_listeners(
-        self,
-        message: str,
-        payload: Payload,
-    ) -> None:
-        ml = self.message_listeners
-        listeners = ml.get(message)
-        await _process_listeners(listeners, payload)
-
-        glbl = ml.get(None)
-        await _process_listeners(glbl, payload)
 
     @staticmethod
     async def _handle_schema(
@@ -203,12 +182,16 @@ class Server:
         )
 
         try:
-            await self._call_listeners(message, data)
+            await self._call_listeners(
+                _SocketMessageTransport(ws),
+                message,
+                data,
+            )
         except Exception as e:
             if isinstance(e, SchemaValidationError):
                 await ws.error(INVALID_CONTENT)
 
-            await ws.error(SERVER_ERROR)
+            raise e
 
         await ws.success()
 
@@ -311,10 +294,13 @@ class Server:
                 path: str = scope["path"]
 
                 if typ == "http":
-                    response = Response(
-                        "Hello, world!",
-                        media_type="text/plain",
-                    )
+                    if path == "/hoist/ack":
+                        response = JSONResponse({"version": __version__})
+                    else:
+                        response = Response(
+                            "Hello, world!",
+                            media_type="text/plain",
+                        )
                     await response(scope, receive, send)
 
                 if typ == "websocket":
@@ -348,29 +334,3 @@ class Server:
             raise RuntimeError(
                 "server cannot start from a running event loop",
             ) from e
-
-    def receive(
-        self,
-        message: Optional[Union[str, Tuple[str, ...]]] = None,
-        parameter: Optional[Union[Schema, T]] = None,
-    ):
-        """Add a listener for message receiving."""
-
-        def decorator(func: Listener):
-            listeners = self.message_listeners
-
-            param = parameter
-
-            if not param:
-                hints = get_type_hints(func)
-                if hints:
-                    param = hints[tuple(hints.keys())[0]]
-
-            value = (func, (param or {}))
-
-            if message in listeners:
-                listeners[message].append(value)
-            else:
-                listeners[message] = [value]
-
-        return decorator

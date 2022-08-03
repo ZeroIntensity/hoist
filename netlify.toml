@@ -1,5 +1,5 @@
 [build]
-command = "mkdocs build"
+command = "python3 -m mkdocs build"
 publish = "site/"
 
 [packages]

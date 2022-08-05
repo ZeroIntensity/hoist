@@ -13,13 +13,14 @@ from versions import Version, parse_version
 
 from ._errors import *
 from ._logging import log
-from ._messages import NEW_MESSAGE, MessageListener
+from ._messages import NEW_MESSAGE, MessageListener, create_message
 from ._operations import BASE_OPERATIONS, call_operation, verify_schema
 from ._socket import ClientError, Socket, make_client, make_client_msg
 from ._typing import (
     LoginFunc, MessageListeners, Operations, Payload, Schema, VersionLike
 )
 from .exceptions import CloseSocket, SchemaValidationError
+from .message import Message
 from .version import __version__
 
 logging.getLogger("uvicorn.error").disabled = True
@@ -35,22 +36,50 @@ async def _base_login(server: "Server", sent_token: str) -> bool:
     return compare_digest(server.token, sent_token)
 
 
+def _invalid_payload(exc: SchemaValidationError) -> Payload:
+    needed = exc.needed
+
+    return {
+        "current": exc.current,
+        "needed": exc.needed.__name__  # type: ignore
+        if not isinstance(needed, tuple)
+        else [i.__name__ if i else str(i) for i in needed],
+    }
+
+
 class _SocketMessageTransport:
-    def __init__(self, ws: Socket) -> None:
+    def __init__(
+        self,
+        ws: Socket,
+        server: "Server",
+    ) -> None:
         self._ws = ws
+        self._server = server
 
     async def message(
         self,
         msg: str,
         data: Optional[Payload] = None,
-    ) -> None:
+        replying: Optional[Message] = None,
+    ) -> Message:
         """Send a message to the client."""
+        d = data or {}
+
         await self._ws.success(
             message=NEW_MESSAGE,
             payload={
                 "message": msg,
-                "data": data or {},
+                "data": d,
+                "replying": replying.to_dict() if replying else None,
             },
+        )
+
+        return Message(
+            self,
+            msg,
+            self._server._current_id,
+            data=data,
+            replying=replying,
         )
 
 
@@ -141,8 +170,11 @@ class Server(MessageListener):
                 schema,
                 payload,
             )
-        except SchemaValidationError:
-            await ws.error(INVALID_CONTENT)
+        except SchemaValidationError as e:
+            await ws.error(
+                INVALID_CONTENT,
+                payload=_invalid_payload(e),
+            )
 
         return [payload[i] for i in schema]
 
@@ -166,34 +198,39 @@ class Server(MessageListener):
 
         try:
             await call_operation(op, data)
-        except SchemaValidationError:
-            await ws.error(INVALID_CONTENT)
+        except SchemaValidationError as e:
+            await ws.error(INVALID_CONTENT, payload=_invalid_payload(e))
 
         await ws.success()
 
     async def _process_message(self, ws: Socket, payload: Payload) -> None:
-        message, data = await self._handle_schema(
+        message, data, replying = await self._handle_schema(
             ws,
             payload,
             {
                 "message": str,
                 "data": dict,
+                "replying": (dict, None),
             },
         )
 
+        transport = _SocketMessageTransport(ws, self)
+        await ws.success(payload={"id": self._current_id + 1})
+
         try:
             await self._call_listeners(
-                _SocketMessageTransport(ws),
+                transport,
                 message,
                 data,
+                await create_message(transport, replying)
+                if replying
+                else None,  # fmt: off
             )
         except Exception as e:
             if isinstance(e, SchemaValidationError):
-                await ws.error(INVALID_CONTENT)
+                await ws.error(INVALID_CONTENT, payload=_invalid_payload(e))
 
             raise e
-
-        await ws.success()
 
     async def _ws_wrapper(self, ws: Socket) -> None:
         version, token = await ws.recv(
@@ -323,9 +360,10 @@ class Server(MessageListener):
             if not self._hide_token
             else ""  # fmt: off
         )
+
         log(
-            "start",
-            f"server running on [bold cyan]{host}:{port}[/]{tokmsg}",
+            "startup",
+            f"starting server on [bold cyan]{host}:{port}[/]{tokmsg}",
         )
 
         try:

@@ -1,4 +1,6 @@
-from typing import Any, List, Optional, Tuple, TypeVar, Union, get_type_hints
+from typing import (
+    TYPE_CHECKING, Any, List, Optional, Tuple, TypeVar, Union, get_type_hints
+)
 
 from typing_extensions import Final
 
@@ -7,20 +9,45 @@ from ._typing import (
     DataclassLike, Listener, ListenerData, Messagable, MessageListeners,
     Payload, Schema
 )
-from .message_socket import MessageSocket
 
-__all__ = ("MessageListener",)
+if TYPE_CHECKING:
+    from .message import Message
+
+__all__ = (
+    "MessageListener",
+    "create_message",
+)
 
 T = TypeVar("T", bound=DataclassLike)
 
 NEW_MESSAGE: Final[str] = "newmsg"
 
 
+async def create_message(conn: Messagable, data: Payload) -> "Message":
+    """Generate a message object from a payload."""
+    from .message import Message
+
+    reply = data.get("replying")
+
+    return Message(
+        conn,
+        data["message"],
+        data["id"],
+        data=data["data"],
+        replying=await create_message(conn, reply) if reply else None,
+    )
+
+
 async def _process_listeners(
     listeners: Optional[List[ListenerData]],
+    msg: str,
+    id: int,
     payload: Payload,
     conn: Messagable,
+    *,
+    replying: Optional["Message"] = None,
 ) -> None:
+    from .message import Message
 
     for i in listeners or ():
         func = i[0]
@@ -31,7 +58,13 @@ async def _process_listeners(
         verify_schema(schema, payload)
 
         await func(
-            MessageSocket(conn),
+            Message(
+                conn,
+                msg,
+                id,
+                data=payload,
+                replying=replying,
+            ),
             payload if is_schema else param(**payload),  # type: ignore
         )
 
@@ -46,6 +79,7 @@ class MessageListener:
         self._message_listeners: MessageListeners = {
             **(extra_listeners or {}),
         }
+        self._current_id = 0
 
     @property
     def message_listeners(self) -> MessageListeners:
@@ -57,14 +91,16 @@ class MessageListener:
         ws: Messagable,
         message: str,
         payload: Payload,
+        replying: Optional["Message"],
     ) -> None:
+        self._current_id += 1
         ml = self.message_listeners
         listeners = ml.get(message)
-        data = (payload, ws)
-        await _process_listeners(listeners, *data)
+        data = (message, self._current_id, payload, ws)
+        await _process_listeners(listeners, *data, replying=replying)
 
         glbl = ml.get(None)
-        await _process_listeners(glbl, *data)
+        await _process_listeners(glbl, *data, replying=replying)
 
     def receive(
         self,
@@ -91,3 +127,8 @@ class MessageListener:
                 listeners[message] = [value]
 
         return decorator
+
+    @property
+    def current_id(self) -> int:
+        """Current message ID."""
+        return self._current_id

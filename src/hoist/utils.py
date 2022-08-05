@@ -27,7 +27,10 @@ def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
     if frame.f_back.f_globals["__name__"] == "__main__":
         try:
             asyncio.run(func())
-        except BaseException:
+        except BaseException as e:
+            if isinstance(e, KeyboardInterrupt):
+                return
+
             print_exc()
 
 

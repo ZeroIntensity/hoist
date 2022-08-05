@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Optional
 
 import aiohttp
@@ -7,12 +8,14 @@ from yarl import URL
 
 from ._client_ws import ServerSocket
 from ._errors import *
+from ._logging import hlog, log
 from ._messages import MessageListener
 from ._typing import MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
     AlreadyConnectedError, InvalidActionError, InvalidVersionError,
-    NotConnectedError, ServerResponseError
+    NotConnectedError, ServerConnectError, ServerResponseError
 )
+from .message import Message
 
 __all__ = ("Connection",)
 
@@ -37,7 +40,13 @@ class Connection(MessageListener):
         self._session = session or aiohttp.ClientSession(loop=self._loop)
         self._ws: Optional[ServerSocket] = None
         self._minimum_version = minimum_version
+        self._closed: bool = False
         super().__init__(extra_listeners)
+
+    @property
+    def closed(self) -> bool:
+        """Whether the client is closed."""
+        return self._closed
 
     @property
     def url(self) -> UrlLike:
@@ -54,7 +63,7 @@ class Connection(MessageListener):
         """Whether the server is currently connected."""
         return self._connected
 
-    async def _close(self) -> None:
+    async def close(self) -> None:
         """Close the connection."""
         self._connected = False
 
@@ -62,10 +71,16 @@ class Connection(MessageListener):
             await self._ws.close()
 
         await self._session.close()
+        self._closed = True
 
     async def _ack(self, url: URL) -> None:
         async with self._session.get(url.with_path("/hoist/ack")) as response:
             json = await response.json()
+            hlog(
+                "ack",
+                json,
+                level=logging.DEBUG,
+            )
 
             version: str = json["version"]
             minver = self._minimum_version
@@ -92,7 +107,12 @@ class Connection(MessageListener):
         raw_url = self.url
         url_obj = raw_url if isinstance(raw_url, URL) else URL(raw_url)
 
-        await self._ack(url_obj)
+        try:
+            await self._ack(url_obj)
+        except aiohttp.ClientConnectionError as e:
+            raise ServerConnectError(
+                f"could not connect to {url_obj} (is the server turned on?)"
+            ) from e
 
         url = url_obj.with_scheme(
             "wss" if url_obj.scheme == "https" else "ws",
@@ -111,30 +131,25 @@ class Connection(MessageListener):
             await self._session._ws_connect(url),
             auth,
         )
+        hlog(
+            "connect",
+            f"connected to {url}",
+            level=logging.DEBUG,
+        )
         await self._ws.login(self._call_listeners)
-
-    def __del__(self) -> None:
-        loop = self._loop
-        coro = self._close()
-
-        if loop.is_closed():
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(coro)
-        else:
-            loop.create_task(coro)
 
     async def _send(
         self,
         action: str,
         payload: Optional[Payload] = None,
-    ) -> None:
+    ):
         if not self._ws:
             raise NotConnectedError(
                 "not connected to websocket (did you forget to call connect?)"
             )
 
         try:
-            await self._ws.send(
+            res = await self._ws.send(
                 {
                     "action": action,
                     "data": payload or {},
@@ -146,16 +161,38 @@ class Connection(MessageListener):
                 raise InvalidActionError(f'"{e}" is not a valid action')
             raise e
 
+        return res
+
     async def message(
         self,
         msg: str,
         data: Optional[Payload] = None,
-    ) -> None:
+        replying: Optional[Message] = None,
+    ) -> Message:
         """Send a message to the server."""
-        await self._send(
+        d = data or {}
+        res = await self._send(
             "message",
             {
                 "message": msg,
-                "data": data or {},
+                "data": d,
+                "replying": replying.to_dict() if replying else None,
             },
         )
+        assert res.data
+
+        return Message(
+            self,
+            msg,
+            res.data["id"],
+            data=d,
+            replying=replying,
+        )
+
+    def __del__(self):
+        if not self.closed:
+            log(
+                "close",
+                "connection object was not closed",
+                level=logging.WARNING,
+            )

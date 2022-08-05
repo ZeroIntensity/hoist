@@ -1,10 +1,13 @@
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 from rich.logging import RichHandler
 from typing_extensions import Final
 
-__all__ = ("log",)
+__all__ = (
+    "log",
+    "hlog",
+)
 
 _FORMAT: Final[str] = "%(message)s"
 _COLORS: Final[Dict[int, str]] = {
@@ -36,10 +39,40 @@ setup_logging()
 logger = logging.getLogger("hoist")
 
 
-def log(key: str, value: str, *, level: int = logging.INFO) -> None:
+def log(
+    key: str,
+    value: Any,
+    *,
+    level: int = logging.INFO,
+    highlight: bool = False,
+) -> None:
     """Log a rich message."""
     logger.log(
         level,
         f"[{_COLORS[level]}]{key}:[/] {value}",
-        extra={"markup": True, "highlighter": None},
+        extra={
+            "markup": True,
+            **(
+                {
+                    "highlighter": None,
+                }
+                if not highlight
+                else {}
+            ),
+        },
+    )
+
+
+def hlog(
+    key: str,
+    value: Any,
+    *,
+    level: int = logging.INFO,
+) -> None:
+    """Log a highligted rich message."""
+    log(
+        key,
+        value,
+        level=level,
+        highlight=True,
     )

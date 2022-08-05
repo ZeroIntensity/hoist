@@ -1,6 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type
 
-from ._typing import Payload
+from ._typing import Payload, SchemaNeededType
 
 
 class _ResponseError(Exception):
@@ -59,6 +59,27 @@ class InvalidVersionError(Exception):
 class SchemaValidationError(Exception):
     """Schema validation failed."""
 
+    def __init__(
+        self,
+        *args,
+        current: Optional[Type[Any]],
+        needed: SchemaNeededType,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._current = current
+        self._needed = needed
+
+    @property
+    def needed(self) -> SchemaNeededType:
+        """Type(s) needed to be valid."""
+        return self._needed
+
+    @property
+    def current(self) -> Optional[Type[Any]]:
+        """Current type."""
+        return self._current
+
 
 class CloseSocket(Exception):
     """Close the socket."""
@@ -78,3 +99,11 @@ class AlreadyConnectedError(Exception):
 
 class InvalidActionError(Exception):
     """Invalid action was sent to the server."""
+
+
+class ServerConnectError(Exception):
+    """Failed to connect to a server."""
+
+
+class BadContentError(Exception):
+    """Invalid JSON content was sent to the server."""

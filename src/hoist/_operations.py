@@ -25,10 +25,11 @@ def verify_schema(schema: Schema, data: Payload) -> None:
 
         if type(typ) is tuple:
             if vtype not in typ:
-                raise SchemaValidationError
+                raise SchemaValidationError(current=vtype, needed=typ)
+            continue
 
         if vtype is not typ:
-            raise SchemaValidationError
+            raise SchemaValidationError(current=vtype, needed=typ)
 
 
 async def call_operation(op: Operator[T], payload: Payload) -> None:

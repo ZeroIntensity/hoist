@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from versions import Version
     from yarl import URL
 
-    from .message_socket import MessageSocket
+    from .message import Message
     from .server import Server
 
 _T = TypeVar("_T")
@@ -28,12 +28,13 @@ _A = TypeVar("_A", bound=Type[DataclassLike])
 
 Payload = Dict[str, Any]
 Operator = Callable[[_T], Awaitable[Any]]
-Schema = Dict[str, Union[Type[Any], Tuple[Type[Any], ...]]]
+SchemaNeededType = Union[Type[Any], Tuple[Optional[Type[Any]], ...]]
+Schema = Dict[str, SchemaNeededType]
 Operations = Dict[str, Operator]
 UrlLike = Union[str, "URL"]
 LoginFunc = Callable[["Server", str], Awaitable[bool]]
 ResponseErrors = Dict[int, Tuple[str, str]]
-Listener = Callable[["MessageSocket", _T], Awaitable[None]]
+Listener = Callable[["Message", _T], Awaitable[None]]
 ListenerData = Tuple[Listener[_A], Union[_A, Schema]]
 MessageListeners = Dict[
     Optional[Union[Tuple[str, ...], str]],
@@ -49,12 +50,13 @@ class Messagable(Protocol):
         self,
         msg: str,
         data: Optional[Payload] = None,
-    ) -> None:
+        replying: Optional["Message"] = None,
+    ) -> "Message":
         """Send a message."""
         ...
 
 
 TransportMessageListener = Callable[
-    [Messagable, str, Payload],
+    [Messagable, str, Payload, Optional["Message"]],
     Awaitable[None],
 ]

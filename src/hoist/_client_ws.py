@@ -1,14 +1,16 @@
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Literal, NamedTuple, Optional, overload
 
 from aiohttp import ClientWebSocketResponse
 
-from ._messages import NEW_MESSAGE
+from ._errors import INVALID_CONTENT
+from ._logging import hlog, log
+from ._messages import NEW_MESSAGE, create_message
 from ._typing import Payload, TransportMessageListener
 from .exceptions import (
-    InvalidVersionError, ServerLoginError, ServerResponseError
+    BadContentError, InvalidVersionError, ServerLoginError, ServerResponseError
 )
-from .message_socket import MessageSocket
 from .version import __version__
 
 if TYPE_CHECKING:
@@ -42,6 +44,7 @@ class ServerSocket:
         self._message_listener: Optional[TransportMessageListener] = None
         self._queue = asyncio.Queue[_Response]()
         self._client = client
+        self._task: Optional[asyncio.Task[None]] = None
 
     async def _recv(self) -> _Response:
         res = await self._queue.get()
@@ -49,35 +52,62 @@ class ServerSocket:
         code = res.code
         error = res.error
         message = res.message
+        data = res.data
 
         if res.code != 0:
             assert error
             assert message
+
+            if res.code == INVALID_CONTENT:
+                assert data
+                needed_raw = data["needed"]
+                needed = (
+                    ", ".join(needed_raw)
+                    if isinstance(needed_raw, list)
+                    else needed_raw  # fmt: off
+                )
+
+                raise BadContentError(
+                    f'sent type {data["current"]} when server expected {needed}',  # noqa
+                )
 
             raise ServerResponseError(
                 f"code {code} [{error}]: {message}",
                 code=res.code,
                 error=error,
                 message=message,
-                payload=res.data,
+                payload=data,
             )
 
         return res
 
     async def _listener(self):
         while True:
-            res = _Response(**await self._ws.receive_json())
+            try:
+                json = await self._ws.receive_json()
+            except TypeError:
+                break
+
+            hlog(
+                "receive",
+                json,
+                level=logging.DEBUG,
+            )
+            res = _Response(**json)
             listener = self._message_listener
             data = res.data
 
             if res.message == NEW_MESSAGE:
                 assert listener
                 assert data
+                client = self._client
+                reply = data["replying"]
 
                 await listener(
-                    MessageSocket(self._client),
+                    client,
                     data["message"],
                     data["data"],
+                    await create_message(client, reply) if reply else None,
                 )
                 continue
 
@@ -86,7 +116,7 @@ class ServerSocket:
     async def login(self, listener: TransportMessageListener) -> None:
         """Send login message to the server."""
         self._message_listener = listener
-        asyncio.create_task(self._listener())
+        self._task = asyncio.create_task(self._listener())
 
         try:
             await self.send(
@@ -116,8 +146,11 @@ class ServerSocket:
 
     async def close(self) -> None:
         """Close the socket."""
-        if not self._ws.closed:
+        log("close", "closing socket", level=logging.DEBUG)
+
+        if not self._closed:
             await self.send({"end": True})
+
         self._closed = True
 
     @overload
@@ -147,9 +180,15 @@ class ServerSocket:
         reply: bool = False,
     ) -> Optional[_Response]:
         """Send a message to the server."""
+        hlog("send", payload, level=logging.DEBUG)
         await self._ws.send_json(payload)
 
         if reply:
             return await self._recv()
 
         return None
+
+    @property
+    def closed(self) -> bool:
+        """Whether the socket is open."""
+        return self._ws.closed

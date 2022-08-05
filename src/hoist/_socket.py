@@ -1,11 +1,12 @@
 import json
+import logging
 from typing import Any, List, NoReturn, Optional
 
 from starlette.datastructures import Address
 from starlette.websockets import WebSocket
 
 from ._errors import *
-from ._logging import log
+from ._logging import hlog, log
 from ._operations import verify_schema
 from ._typing import Payload, Schema
 from .exceptions import ClientError, CloseSocket
@@ -73,16 +74,16 @@ class Socket:
         desc: Optional[str] = None,
     ) -> None:
         """Send a message to the client."""
-        await self.ws.send_json(
-            {
-                "success": success,
-                "data": payload,
-                "error": error,
-                "code": code,
-                "message": message,
-                "desc": desc,
-            }
-        )
+        content = {
+            "success": success,
+            "data": payload,
+            "error": error,
+            "code": code,
+            "message": message,
+            "desc": desc,
+        }
+        hlog("send", content, level=logging.DEBUG)
+        await self.ws.send_json(content)
 
     async def error(
         self,
@@ -124,6 +125,8 @@ class Socket:
             load: dict = json.loads(await self.ws.receive_text())
         except json.JSONDecodeError:
             await self.error(INVALID_JSON)
+
+        hlog("receive", load, level=logging.DEBUG)
 
         if load.get("end"):
             raise CloseSocket

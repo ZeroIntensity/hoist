@@ -1,7 +1,10 @@
 import asyncio
 import inspect
+import logging
+import os
+from contextlib import asynccontextmanager
 from threading import Thread
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any, Awaitable, Callable, Coroutine, Optional, Union
 
 from rich.console import Console
 
@@ -15,6 +18,8 @@ __all__ = (
     "main",
     "connect",
     "start",
+    "connect_to",
+    "debug",
 )
 
 
@@ -34,15 +39,47 @@ def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
             print_exc()
 
 
+@asynccontextmanager
 async def connect(
     url: UrlLike,
     token: str,
     **kwargs: Any,
-) -> Connection:
+):
     """Connect to a Hoist server."""
-    conn = Connection(url, token, **kwargs)
-    await conn.connect()
-    return conn
+    try:
+        conn = Connection(url, token, **kwargs)
+        await conn.connect()
+        yield conn
+    finally:
+        await conn.close()
+
+
+def connect_to(
+    url: UrlLike,
+    token: str,
+    **kwargs: Any,
+):
+    """Connect to a server with a decorator."""
+
+    def inner(func: Callable[[Connection], Awaitable[Any]]):
+        async def _wrapper():
+            conn = Connection(url, token, **kwargs)
+
+            try:
+                await conn.connect()
+                await func(conn)
+            except BaseException as e:
+                if isinstance(e, KeyboardInterrupt):
+                    return
+
+                print_exc()
+            finally:
+                if not conn.closed:
+                    await conn.close()
+
+        asyncio.run(_wrapper())
+
+    return inner
 
 
 def start(
@@ -64,3 +101,11 @@ def start(
     )
     t.start()
     return srvr
+
+
+def debug(*, trace: Union[bool, str] = False) -> None:
+    """Enable debug logging."""
+    logging.getLogger("hoist").setLevel(logging.DEBUG)
+    os.environ["HOIST_TRACE"] = (
+        trace if not isinstance(trace, bool) else "all" if trace else ""
+    )

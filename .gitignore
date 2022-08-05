@@ -131,3 +131,5 @@ dmypy.json
 test.py
 .vscode/
 a.py
+node_modules/
+yarn.lock

@@ -6,14 +6,18 @@ from typing import Any, List, NoReturn, Optional, Sequence, Union
 
 import uvicorn
 from rich.console import Console
-from starlette.responses import JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from versions import Version, parse_version
 
 from ._errors import *
-from ._logging import log
-from ._messages import NEW_MESSAGE, MessageListener, create_message
+from ._html import HTML
+from ._logging import hlog, log
+from ._messages import (
+    LISTENER_CLOSE, LISTENER_OPEN, NEW_MESSAGE, SINGLE_NEW_MESSAGE,
+    MessageListener, create_message
+)
 from ._operations import BASE_OPERATIONS, call_operation, verify_schema
 from ._socket import ClientError, Socket, make_client, make_client_msg
 from ._typing import (
@@ -52,9 +56,11 @@ class _SocketMessageTransport:
         self,
         ws: Socket,
         server: "Server",
+        event_message: str = NEW_MESSAGE,
     ) -> None:
         self._ws = ws
         self._server = server
+        self._message = event_message
 
     async def message(
         self,
@@ -66,7 +72,7 @@ class _SocketMessageTransport:
         d = data or {}
 
         await self._ws.success(
-            message=NEW_MESSAGE,
+            message=self._message,
             payload={
                 "message": msg,
                 "data": d,
@@ -111,6 +117,7 @@ class Server(MessageListener):
         self._operations = {**BASE_OPERATIONS, **(extra_operations or {})}
         self._supported_operations = supported_operations or ["*"]
         self._unsupported_operations = unsupported_operations or []
+        self._clients: List[Socket] = []
         super().__init__(extra_listeners)
 
     @property
@@ -215,7 +222,10 @@ class Server(MessageListener):
         )
 
         transport = _SocketMessageTransport(ws, self)
-        await ws.success(payload={"id": self._current_id + 1})
+        await ws.success(
+            payload={"id": self._current_id + 1},
+            message=LISTENER_OPEN,
+        )
 
         try:
             await self._call_listeners(
@@ -231,6 +241,8 @@ class Server(MessageListener):
                 await ws.error(INVALID_CONTENT, payload=_invalid_payload(e))
 
             raise e
+
+        await ws.success(message=LISTENER_CLOSE)
 
     async def _ws_wrapper(self, ws: Socket) -> None:
         version, token = await ws.recv(
@@ -282,9 +294,16 @@ class Server(MessageListener):
                 await ws.error(INVALID_ACTION)
 
     async def _ws(self, ws: Socket) -> None:
+        self._clients.append(ws)
+
         try:
             await self._ws_wrapper(ws)
         except Exception as e:
+            log(
+                "exc",
+                f"{e.__class__.__name__}: {str(e) or '<no message>'}",
+                level=logging.DEBUG,
+            )
             addr = ws.address
             if isinstance(e, WebSocketDisconnect):
                 log(
@@ -312,6 +331,8 @@ class Server(MessageListener):
                 with suppress(ClientError):
                     await ws.error(SERVER_ERROR)
 
+        self._clients.remove(ws)
+
     def start(  # type: ignore
         self,
         *,
@@ -332,11 +353,12 @@ class Server(MessageListener):
 
                 if typ == "http":
                     if path == "/hoist/ack":
-                        response = JSONResponse({"version": __version__})
+                        msg = {"version": __version__}
+                        hlog("ack", msg, level=logging.DEBUG)
+                        response = JSONResponse(msg)
                     else:
-                        response = Response(
-                            "Hello, world!",
-                            media_type="text/plain",
+                        response = HTMLResponse(
+                            HTML,
                         )
                     await response(scope, receive, send)
 
@@ -372,3 +394,17 @@ class Server(MessageListener):
             raise RuntimeError(
                 "server cannot start from a running event loop",
             ) from e
+
+    async def broadcast(
+        self,
+        message: str,
+        payload: Optional[Payload] = None,
+    ) -> None:
+        """Send a message to all connections."""
+        for i in self._clients:
+            transport = _SocketMessageTransport(
+                i,
+                self,
+                SINGLE_NEW_MESSAGE,
+            )
+            await transport.message(message, payload)

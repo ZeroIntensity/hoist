@@ -8,7 +8,7 @@ from yarl import URL
 
 from ._client_ws import ServerSocket
 from ._errors import *
-from ._logging import hlog, log
+from ._logging import hlog
 from ._messages import MessageListener
 from ._typing import MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
@@ -128,7 +128,7 @@ class Connection(MessageListener):
         self._connected = True
         self._ws = ServerSocket(
             self,
-            await self._session._ws_connect(url),
+            await self._session.ws_connect(url),
             auth,
         )
         hlog(
@@ -170,6 +170,11 @@ class Connection(MessageListener):
         replying: Optional[Message] = None,
     ) -> Message:
         """Send a message to the server."""
+        if not self._ws:
+            raise NotConnectedError(
+                "not connected to websocket (did you forget to call connect?)"
+            )
+
         d = data or {}
         res = await self._send(
             "message",
@@ -179,6 +184,7 @@ class Connection(MessageListener):
                 "replying": replying.to_dict() if replying else None,
             },
         )
+
         assert res.data
 
         return Message(
@@ -188,11 +194,3 @@ class Connection(MessageListener):
             data=d,
             replying=replying,
         )
-
-    def __del__(self):
-        if not self.closed:
-            log(
-                "close",
-                "connection object was not closed",
-                level=logging.WARNING,
-            )

@@ -1,9 +1,11 @@
+import logging
 from typing import (
     TYPE_CHECKING, Any, List, Optional, Tuple, TypeVar, Union, get_type_hints
 )
 
 from typing_extensions import Final
 
+from ._logging import hlog
 from ._operations import verify_schema
 from ._typing import (
     DataclassLike, Listener, ListenerData, Messagable, MessageListeners,
@@ -21,6 +23,9 @@ __all__ = (
 T = TypeVar("T", bound=DataclassLike)
 
 NEW_MESSAGE: Final[str] = "newmsg"
+LISTENER_OPEN: Final[str] = "open"
+LISTENER_CLOSE: Final[str] = "done"
+SINGLE_NEW_MESSAGE: Final[str] = "s_newmsg"
 
 
 async def create_message(conn: Messagable, data: Payload) -> "Message":
@@ -48,6 +53,12 @@ async def _process_listeners(
     replying: Optional["Message"] = None,
 ) -> None:
     from .message import Message
+
+    hlog(
+        "listeners",
+        f"processing: {listeners}",
+        level=logging.DEBUG,
+    )
 
     for i in listeners or ():
         func = i[0]

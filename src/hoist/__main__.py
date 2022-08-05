@@ -53,7 +53,7 @@ from .version import __version__
 @click.option(
     "--version",
     "-v",
-    help="Print out version and exit.",
+    help="Display version and exit.",
     is_flag=True,
 )
 def main(
@@ -65,7 +65,7 @@ def main(
     default_len: int,
     version: bool,
 ) -> None:
-    """CLI entry point."""
+    """Start a new Hoist server."""
     if version:
         return print(f"[bold cyan]Hoist {__version__}[/]")
 

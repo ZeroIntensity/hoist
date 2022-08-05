@@ -1,0 +1,10 @@
+{
+    "license": "MIT",
+    "private": true,
+    "dependencies": {
+        "tailwindcss": "^3.1.8"
+    },
+    "scripts": {
+        "build": "tailwindcss -i main.css -o dist/output.css && python3 final_build.py"
+    }
+}

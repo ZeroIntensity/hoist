@@ -1,4 +1,6 @@
+import inspect
 import logging
+import os
 from typing import Any, Dict
 
 from rich.logging import RichHandler
@@ -47,9 +49,25 @@ def log(
     highlight: bool = False,
 ) -> None:
     """Log a rich message."""
+    trace = os.getenv("HOIST_TRACE")
+    frame = inspect.currentframe()
+    assert frame
+    back = frame.f_back
+    assert back
+
+    caller = back.f_code.co_name
+
+    if caller == "hlog":
+        nback = back.f_back
+        assert nback
+        caller = nback.f_code.co_name
+
+    k = key if trace != "only" else caller
+    prefix = f"([bold green]{caller}[/]) " if trace == "all" else ""
+
     logger.log(
         level,
-        f"[{_COLORS[level]}]{key}:[/] {value}",
+        f"{prefix}[{_COLORS[level]}]{k}:[/] {value}",
         extra={
             "markup": True,
             **(

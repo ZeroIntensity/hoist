@@ -1,12 +1,14 @@
-import asyncio
 import logging
-from typing import TYPE_CHECKING, Literal, NamedTuple, Optional, overload
+from typing import TYPE_CHECKING, List, Literal, NamedTuple, Optional, overload
 
 from aiohttp import ClientWebSocketResponse
 
 from ._errors import INVALID_CONTENT
 from ._logging import hlog, log
-from ._messages import NEW_MESSAGE, create_message
+from ._messages import (
+    LISTENER_CLOSE, LISTENER_OPEN, NEW_MESSAGE, SINGLE_NEW_MESSAGE,
+    create_message
+)
 from ._typing import Payload, TransportMessageListener
 from .exceptions import (
     BadContentError, InvalidVersionError, ServerLoginError, ServerResponseError
@@ -42,12 +44,20 @@ class ServerSocket:
         self._logged: bool = False
         self._closed: bool = False
         self._message_listener: Optional[TransportMessageListener] = None
-        self._queue = asyncio.Queue[_Response]()
         self._client = client
-        self._task: Optional[asyncio.Task[None]] = None
+
+    async def _rc(self) -> _Response:
+        json = await self._ws.receive_json()
+        hlog(
+            "receive",
+            json,
+            level=logging.DEBUG,
+        )
+        return _Response(**json)
 
     async def _recv(self) -> _Response:
-        res = await self._queue.get()
+        res = await self._rc()
+        messages: List[Payload] = []
 
         code = res.code
         error = res.error
@@ -79,44 +89,60 @@ class ServerSocket:
                 payload=data,
             )
 
-        return res
+        if res.message == SINGLE_NEW_MESSAGE:
+            assert data
+            messages.append(data)
+            res = await self._recv()
 
-    async def _listener(self):
-        while True:
-            try:
-                json = await self._ws.receive_json()
-            except TypeError:
-                break
-
-            hlog(
-                "receive",
-                json,
+        if res.message == LISTENER_OPEN:
+            log(
+                "listener",
+                "now receiving",
                 level=logging.DEBUG,
             )
-            res = _Response(**json)
-            listener = self._message_listener
-            data = res.data
 
-            if res.message == NEW_MESSAGE:
-                assert listener
-                assert data
-                client = self._client
-                reply = data["replying"]
-
-                await listener(
-                    client,
-                    data["message"],
-                    data["data"],
-                    await create_message(client, reply) if reply else None,
+            while True:
+                new_res_json = await self._ws.receive_json()
+                new_res = _Response(**new_res_json)
+                hlog(
+                    "listener receive",
+                    new_res_json,
+                    level=logging.DEBUG,
                 )
-                continue
 
-            await self._queue.put(res)
+                if new_res.message == LISTENER_CLOSE:
+                    break
+
+                elif new_res.message in {NEW_MESSAGE, SINGLE_NEW_MESSAGE}:
+                    data = new_res.data
+                    assert data
+                    messages.append(data)
+
+            log(
+                "listener",
+                "done receiving",
+                level=logging.DEBUG,
+            )
+
+        listener = self._message_listener
+        assert listener
+
+        for i in messages:
+            client = self._client
+            reply = i["replying"]
+
+            await listener(
+                client,
+                i["message"],
+                i["data"],
+                await create_message(client, reply) if reply else None,
+            )
+
+        return res
 
     async def login(self, listener: TransportMessageListener) -> None:
         """Send login message to the server."""
         self._message_listener = listener
-        self._task = asyncio.create_task(self._listener())
 
         try:
             await self.send(
@@ -150,6 +176,12 @@ class ServerSocket:
 
         if not self._closed:
             await self.send({"end": True})
+        else:
+            log(
+                "close",
+                "attempted to double close connection",
+                level=logging.WARNING,
+            )
 
         self._closed = True
 
@@ -180,15 +212,10 @@ class ServerSocket:
         reply: bool = False,
     ) -> Optional[_Response]:
         """Send a message to the server."""
-        hlog("send", payload, level=logging.DEBUG)
         await self._ws.send_json(payload)
+        hlog("send", payload, level=logging.DEBUG)
 
         if reply:
             return await self._recv()
 
         return None
-
-    @property
-    def closed(self) -> bool:
-        """Whether the socket is open."""
-        return self._ws.closed

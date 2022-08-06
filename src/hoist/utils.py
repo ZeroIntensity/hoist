@@ -41,8 +41,8 @@ def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
 
 @asynccontextmanager
 async def connect(
-    url: UrlLike,
     token: str,
+    url: UrlLike = "http://localhost:5000",
     **kwargs: Any,
 ):
     """Connect to a Hoist server."""
@@ -114,9 +114,17 @@ def start(
     return srvr
 
 
-def debug(*, trace: Union[bool, str] = False) -> None:
+def debug(
+    *,
+    trace: Union[bool, str] = False,
+    enable_uvicorn: bool = False,
+) -> None:
     """Enable debug logging."""
     logging.getLogger("hoist").setLevel(logging.DEBUG)
     os.environ["HOIST_TRACE"] = (
         trace if not isinstance(trace, bool) else "all" if trace else ""
     )
+
+    if enable_uvicorn:
+        logging.getLogger("uvicorn.error").disabled = True
+        logging.getLogger("uvicorn.access").disabled = True

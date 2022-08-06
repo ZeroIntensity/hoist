@@ -335,6 +335,48 @@ class Server(MessageListener):
 
         self._clients.remove(ws)
 
+    async def _app(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        typ: str = scope["type"]
+
+        if typ != "lifespan":
+            path: str = scope["path"]
+            hlog(
+                "request" if typ == "http" else "websocket",
+                f"[bold white]{path}[/] {scope}",
+                level=logging.DEBUG,
+            )
+
+            if typ == "http":
+                if path == "/hoist/ack":
+                    msg = {"version": __version__}
+                    hlog("ack", msg, level=logging.DEBUG)
+                    response = JSONResponse(msg)
+                else:
+                    response = HTMLResponse(
+                        HTML,
+                    )
+                await response(scope, receive, send)
+
+            if typ == "websocket":
+                if path == "/hoist":
+                    socket = WebSocket(scope, receive, send)
+                    obj = Socket(socket)
+                    await obj.connect()
+
+                    return await self._ws(obj)
+
+                response = Response(
+                    "Not found.",
+                    media_type="text/plain",
+                    status_code=404,
+                )
+                await response(scope, receive, send)
+
     def start(  # type: ignore
         self,
         *,
@@ -348,41 +390,7 @@ class Server(MessageListener):
             receive: Receive,
             send: Send,
         ) -> None:
-            typ: str = scope["type"]
-
-            if typ != "lifespan":
-                path: str = scope["path"]
-                hlog(
-                    "request" if typ == "http" else "websocket",
-                    f"[bold white]{path}[/] {scope}",
-                    level=logging.DEBUG,
-                )
-
-                if typ == "http":
-                    if path == "/hoist/ack":
-                        msg = {"version": __version__}
-                        hlog("ack", msg, level=logging.DEBUG)
-                        response = JSONResponse(msg)
-                    else:
-                        response = HTMLResponse(
-                            HTML,
-                        )
-                    await response(scope, receive, send)
-
-                if typ == "websocket":
-                    if path == "/hoist":
-                        socket = WebSocket(scope, receive, send)
-                        obj = Socket(socket)
-                        await obj.connect()
-
-                        return await self._ws(obj)
-
-                    response = Response(
-                        "Not found.",
-                        media_type="text/plain",
-                        status_code=404,
-                    )
-                    await response(scope, receive, send)
+            await self._app(scope, receive, send)
 
         tokmsg: str = (
             f" with token [bold blue]{self.token}[/]"

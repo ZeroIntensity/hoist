@@ -5,25 +5,37 @@ on:
         branches:
             - master
     pull_request:
-concurrency: lint-${{ github.sha }}
+        branches:
+            - master
+
+concurrency:
+    group: test-${{ github.head_ref }}
+    cancel-in-progress: true
+
+env:
+    PYTHONUNBUFFERED: "1"
+    FORCE_COLOR: "1"
 
 jobs:
-    lint:
-        runs-on: ubuntu-latest
-
-        env:
-            PYTHON_VERSION: "3.10"
+    run:
+        name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+                python-version: ["3.7", "3.8", "3.9", "3.10"]
 
         steps:
-            # Checks out the repository in the current folder.
-            - name: Checkout
-              uses: actions/checkout@v3
+            - uses: actions/checkout@v2
 
-            # Set up the right version of Python
-            - name: Set up Python ${{ env.PYTHON_VERSION }}
-              uses: actions/setup-python@v3
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v2
               with:
-                  python-version: ${{ env.PYTHON_VERSION }}
+                  python-version: ${{ matrix.python-version }}
 
-            - name: Pre-commit hooks
-              uses: pre-commit/action@v3.0.0
+            - name: Install Hatch
+              run: pip install --upgrade --pre hatch
+
+            - name: Run tests
+              run: hatch run tests

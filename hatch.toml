@@ -1,0 +1,32 @@
+[version]
+path = "src/hoist/version.py"
+
+[build.targets.sdist]
+exclude = [
+  "/.github",
+  "/docs",
+  "/page",
+  "/.mypy_cache",
+  "/.venv",
+]
+[build.targets.wheel]
+packages = ["src/hoist"]
+
+[envs.default]
+dependencies = [
+  "ward",
+]
+[envs.default.scripts]
+tests = "ward --path tests"
+
+
+[envs.docs]
+dependencies = [
+  "mkdocs"
+]
+[envs.docs.scripts]
+build = "mkdocs build --clean"
+serve = "mkdocs serve --dev-addr localhost:8000"
+
+[[envs.test.matrix]]
+python = ["37", "38", "39", "310"]

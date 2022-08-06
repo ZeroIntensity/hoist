@@ -7,18 +7,22 @@
 ```py
 import hoist
 
-@hoist.main
-async def main():
-    server = await hoist.connect("http://localhost:5000", "test")
-    await server.message("hello", {"a": "world"})
+server = hoist.start("test") # set "test" as the authentication key
+
+@server.receive("hello")
+async def hello(socket: hoist.Message, payload: dict) -> None:
+    print("server got hello")
+    await message.reply("hi")
 ```
 
 ```py
 import hoist
 
-server = hoist.start("test")  # set "test" as the authentication key
+@hoist.connect_to("http://localhost:5000", "test") # log in to the server with key "test"
+async def main(server: hoist.Connection):
+    @server.receive("hi")
+    async def hello(message: hoist.Message, payload: dict):
+        print("client got hi")
 
-@server.receive("hello")
-async def hello(payload: dict) -> None:
-    print("hello", payload.get("a"))
+    await server.message("hello")
 ```

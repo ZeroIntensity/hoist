@@ -27,7 +27,9 @@ async def main(server: hoist.Connection):
 
 ## What is Hoist
 
-Hoist is a library created to make client-server communication very simple. At its core, it's just a WebSocket/HTTP library, but built in a way to make the developers life easy while keeping communication flexible and predictable.
+Hoist is a library created to make client-server communication very simple.
+
+At its core, it's just a WebSocket/HTTP library, but built in a way to make the developers life easy while keeping communication flexible and predictable.
 
 ## Why should I use Hoist?
 
@@ -37,4 +39,8 @@ In Hoist, you don't have to worry about your server failing or giving some arbit
 
 ## Why shouldn't I use Hoist?
 
-For the reasons above, Hoist has to make some design choices that others might not agree with, the biggest issue being external flexibility. As of now, you pretty much can't get Hoist to work with other frameworks and errors can be introduced when not using some of the utilities. If you need a nice way to communicate between a client and server, Hoist is a great option, but if you need a fullstack web application, then not so much.
+For the reasons above, Hoist has to make some design choices that others might not agree with, the biggest issue being external flexibility.
+
+As of now, you pretty much can't get Hoist to work with other frameworks and errors can be introduced when not using some of the utilities.
+
+If you need a nice way to communicate between a client and server, Hoist is a great option, but if you need a fullstack web application, then not so much.

@@ -24,7 +24,9 @@ from ._typing import (
     LoginFunc, MessageListeners, Operations, Payload, Schema, VersionLike
 )
 from ._uvicorn import UvicornServer
-from .exceptions import CloseSocket, SchemaValidationError
+from .exceptions import (
+    CloseSocket, SchemaValidationError, ServerNotStartedError
+)
 from .message import Message
 from .version import __version__
 
@@ -418,6 +420,11 @@ class Server(MessageListener):
         payload: Optional[Payload] = None,
     ) -> None:
         """Send a message to all connections."""
+        if not self._server:
+            raise ServerNotStartedError(
+                "server is not started (did you forget to call start?)"
+            )
+
         for i in self._clients:
             transport = _SocketMessageTransport(
                 i,
@@ -428,8 +435,12 @@ class Server(MessageListener):
 
     def close(self) -> None:
         """Close the server."""
-        assert self._server
+        if not self._server:
+            raise ServerNotStartedError(
+                "server is not started (did you call close twice?)"
+            )
         self._server.close_thread()
+        self._server = None
 
         log(
             "shutdown",

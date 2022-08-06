@@ -41,7 +41,7 @@ from .version import __version__
     "-m",
     type=str,
     help="Minimum version to connect to the server with.",
-    default=20,
+    default=__version__,
 )
 @click.option(
     "--default-len",

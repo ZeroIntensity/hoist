@@ -3,6 +3,8 @@ site_url: https://example.com/
 nav:
     - Home: index.md
     - Getting Started: getting_started.md
+    - Servers: servers.md
+    - Messages: messages.md
 theme:
     name: material
     palette:
@@ -38,5 +40,7 @@ markdown_extensions:
     - pymdownx.inlinehilite
     - pymdownx.snippets
     - pymdownx.superfences
+    - admonition
+    - pymdownx.details
     - pymdownx.tabbed:
           alternate_style: true

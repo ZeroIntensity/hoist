@@ -111,3 +111,7 @@ class BadContentError(Exception):
 
 class ConnectionFailedError(Exception):
     """Failed to connect to the target server.."""
+
+
+class ServerNotStartedError(Exception):
+    """Server is not started."""

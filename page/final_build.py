@@ -15,6 +15,6 @@ with open("./dist/output.html") as dist:
 
 __all__ = ("HTML",)
 
-HTML = '''{dist.read()}'''.replace('{{version}}', __version__)
+HTML = r'''{dist.read()}'''.replace('{{version}}', __version__)
 """
         )

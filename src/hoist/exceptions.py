@@ -107,3 +107,7 @@ class ServerConnectError(Exception):
 
 class BadContentError(Exception):
     """Invalid JSON content was sent to the server."""
+
+
+class ConnectionFailedError(Exception):
+    """Failed to connect to the target server.."""

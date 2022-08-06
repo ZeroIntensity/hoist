@@ -8,6 +8,7 @@ exclude = [
   "/page",
   "/.mypy_cache",
   "/.venv",
+  "/tests",
 ]
 [build.targets.wheel]
 packages = ["src/hoist"]
@@ -20,7 +21,7 @@ dependencies = [
 ]
 [envs.default.scripts]
 tests = "ward --path tests"
-
+build = "npm run --prefix ./page build"
 
 [envs.docs]
 dependencies = [

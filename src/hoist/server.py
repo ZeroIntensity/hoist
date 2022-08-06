@@ -352,6 +352,11 @@ class Server(MessageListener):
 
             if typ != "lifespan":
                 path: str = scope["path"]
+                hlog(
+                    "request" if typ == "http" else "websocket",
+                    f"[bold white]{path}[/] {scope}",
+                    level=logging.DEBUG,
+                )
 
                 if typ == "http":
                     if path == "/hoist/ack":

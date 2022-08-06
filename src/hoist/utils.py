@@ -65,7 +65,7 @@ def serve(
 ):
     """Serve a Hoist server."""
     try:
-        srvr = server or Server(token, *kwargs)
+        srvr = server or Server(token, **kwargs)
         srvr.start(host=host, port=port)
         yield srvr
     finally:

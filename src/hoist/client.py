@@ -12,8 +12,9 @@ from ._logging import hlog
 from ._messages import MessageListener
 from ._typing import MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
-    AlreadyConnectedError, InvalidActionError, InvalidVersionError,
-    NotConnectedError, ServerConnectError, ServerResponseError
+    AlreadyConnectedError, ConnectionFailedError, InvalidActionError,
+    InvalidVersionError, NotConnectedError, ServerConnectError,
+    ServerResponseError
 )
 from .message import Message
 
@@ -126,9 +127,16 @@ class Connection(MessageListener):
             )
 
         self._connected = True
+        try:
+            conn = await self._session.ws_connect(url)
+        except aiohttp.WSServerHandshakeError as e:
+            raise ConnectionFailedError(
+                f"failed to connect to {url}, does it support hoist?"
+            ) from e
+
         self._ws = ServerSocket(
             self,
-            await self._session.ws_connect(url),
+            conn,
             auth,
         )
         hlog(

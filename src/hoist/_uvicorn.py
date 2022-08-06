@@ -32,3 +32,5 @@ class UvicornServer(uvicorn.Server):
 
         if t:
             t.join()
+
+        self._thread = None

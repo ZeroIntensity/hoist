@@ -115,3 +115,7 @@ class ConnectionFailedError(Exception):
 
 class ServerNotStartedError(Exception):
     """Server is not started."""
+
+
+class AlreadyInUseError(Exception):
+    """Port is already in use."""

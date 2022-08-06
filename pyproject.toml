@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "hoist-new"
+name = "hoist-http"
 description = 'Easy client-server communication'
 readme = "README.md"
 requires-python = ">=3.7"

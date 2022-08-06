@@ -5,13 +5,13 @@
 === "Linux/Mac"
 
     ```
-    python3 -m pip install -U hoist-new
+    python3 -m pip install -U hoist-http
     ```
 
 === "Windows"
 
     ```
-    py -m pip install -U hoist-new
+    py -m pip install -U hoist-http
     ```
 
 ## Basic Server

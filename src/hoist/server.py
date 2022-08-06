@@ -1,15 +1,18 @@
+import asyncio
 import logging
 from contextlib import suppress
 from secrets import choice, compare_digest
 from string import ascii_letters
 from typing import Any, List, Optional, Sequence, Union
 
+import aiohttp
 import uvicorn
 from rich.console import Console
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from versions import Version, parse_version
+from yarl import URL
 
 from ._errors import *
 from ._html import HTML
@@ -25,7 +28,8 @@ from ._typing import (
 )
 from ._uvicorn import UvicornServer
 from .exceptions import (
-    CloseSocket, SchemaValidationError, ServerNotStartedError
+    AlreadyInUseError, CloseSocket, SchemaValidationError,
+    ServerNotStartedError
 )
 from .message import Message
 from .version import __version__
@@ -103,7 +107,7 @@ class Server(MessageListener):
         default_token_choices: Union[str, Sequence[str]] = ascii_letters,
         hide_token: bool = False,
         login_func: LoginFunc = _base_login,
-        log_level: int = logging.INFO,
+        log_level: Optional[int] = None,
         minimum_version: Optional[VersionLike] = None,
         extra_operations: Optional[Operations] = None,
         unsupported_operations: Optional[List[str]] = None,
@@ -115,7 +119,7 @@ class Server(MessageListener):
         )
         self._hide_token = hide_token
         self._login_func = login_func
-        logging.getLogger("hoist").setLevel(log_level)
+        logging.getLogger("hoist").setLevel(log_level or logging.INFO)
         self._minimum_version = minimum_version
         self._operations = {**BASE_OPERATIONS, **(extra_operations or {})}
         self._supported_operations = supported_operations or ["*"]
@@ -379,6 +383,15 @@ class Server(MessageListener):
                 )
                 await response(scope, receive, send)
 
+    @staticmethod
+    async def _ensure_none(url: URL):
+        async with aiohttp.ClientSession() as s:
+            with suppress(aiohttp.ClientConnectionError):
+                async with s.get(url):
+                    raise AlreadyInUseError(
+                        f"{url} is an existing server (did you forget to close it?)",  # noqa
+                    )
+
     def start(  # type: ignore
         self,
         *,
@@ -403,6 +416,17 @@ class Server(MessageListener):
         log(
             "startup",
             f"starting server on [bold cyan]{host}:{port}[/]{tokmsg}",
+        )
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(
+            self._ensure_none(
+                URL.build(
+                    host=host,
+                    port=port,
+                    scheme="http",
+                )
+            )
         )
 
         try:

@@ -1,7 +1,8 @@
 import logging
-from typing import TYPE_CHECKING, List, Literal, NamedTuple, Optional, overload
+from typing import TYPE_CHECKING, List, NamedTuple, Optional, overload
 
 from aiohttp import ClientWebSocketResponse
+from typing_extensions import Literal
 
 from ._errors import INVALID_CONTENT
 from ._logging import hlog, log

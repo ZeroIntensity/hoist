@@ -6,6 +6,8 @@ The Hoist CLI can get limited quickly, so how do we create servers without the C
 
 Hoist has two utilities for this, `start` and `serve`.
 
+### Start
+
 Lets begin with `start`:
 
 ```py
@@ -26,6 +28,8 @@ server = hoist.start("test")  # uses "test" as the authentication key
 server.close()
 # server is now stopped
 ```
+
+### Serve
 
 Calling something like `close()` is generally considered bad practice though, and you should use a context manager instead. That's where `serve` comes in.
 
@@ -58,7 +62,8 @@ async def login(
     server: hoist.Server,
     sent_token: str,
 ) -> bool:
-    token: str = server.token  # this is the servers token, which in this case is "test"
+    token: str = server.token
+    # this is the servers token, which in this case is "test"
     return sent_token == token
 
 server = hoist.start("test", login_func=login)
@@ -82,6 +87,54 @@ server = hoist.start("test", minimum_version=hoist.__version__)
 
 This will require all clients that connect to be the same version as you, or higher.
 
+## Auto-Generated Tokens
+
+So far we've only manually set the token when creating the server. When you don't specify the token, Hoist automatically generates a secure 25 character random string to use instead.
+
+You can see this in action by simply using the CLI:
+
+=== "Linux/Mac"
+
+    ```
+    python3 -m hoist
+    ```
+
+=== "Windows"
+
+    ```
+    py -m hoist
+    ```
+
+### Customization
+
+Lets say we want 50 characters instead of 25:
+
+```py
+hoist.start(default_token_len=50)
+```
+
+Or maybe we want the key to only use punctuation characters:
+
+```py
+import string
+
+hoist.start(default_token_choices=string.punctuation)
+```
+
+If you want the token to be hidden on startup (meaning you can only view it via the `token` property), you can pass `#!python hide_token=True`:
+
+```py
+import hoist
+
+hoist.start(hide_token=True)
+```
+
+Then in your terminal, it should show the following:
+
+```
+startup: starting server on 0.0.0.0:5000
+```
+
 ## Broadcasting
 
 At any point while the server is alive, it may broadcast a message to all connected clients.
@@ -100,3 +153,67 @@ async def main():
 This code won't work very well though, since there won't be any clients connected right after the server starts.
 
 We'll talk more about messages in the next section.
+
+## Logging
+
+If you want Hoist to change the level of server messages, you can pass `log_level`:
+
+```py
+import hoist
+import logging
+
+hoist.start(log_level=logging.ERROR) # only log errors
+```
+
+### Debug Logging
+
+If you would like debug logging, you can use the `debug` utility:
+
+```py
+import hoist
+
+hoist.debug() # equivalent to passing log_level=logging.DEBUG
+hoist.start()
+```
+
+### Tracing
+
+`debug` comes with two parameters, `trace` and `enable_uvicorn`.
+
+You can use `trace` to include where the log was called:
+
+```py
+hoist.debug(trace=True)
+hoist.start()
+```
+
+The log message now looks like:
+
+```
+(start) startup: starting server on...
+```
+
+### Uvicorn
+
+There are some cases where an internal error might only show up on the `uvicorn` logger.
+
+To enable uvicorn logging, pass `enable_uvicorn=True` to `debug`:
+
+```py
+hoist.debug(enable_uvicorn=True)
+hoist.start()
+```
+
+Now, when running the terminal should now look like:
+
+```
+startup: starting server on 0.0.0.0:5000 with token ...
+INFO:     Started server process [...]
+Started server process [...]
+INFO:     Waiting for application startup.
+Waiting for application startup.
+INFO:     Application startup complete.
+Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+```

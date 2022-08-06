@@ -110,8 +110,8 @@ class Server(MessageListener):
         log_level: Optional[int] = None,
         minimum_version: Optional[VersionLike] = None,
         extra_operations: Optional[Operations] = None,
-        unsupported_operations: Optional[List[str]] = None,
-        supported_operations: Optional[List[str]] = None,
+        unsupported_operations: Optional[Sequence[str]] = None,
+        supported_operations: Optional[Sequence[str]] = None,
         extra_listeners: Optional[MessageListeners] = None,
     ) -> None:
         self._token = token or "".join(
@@ -119,22 +119,26 @@ class Server(MessageListener):
         )
         self._hide_token = hide_token
         self._login_func = login_func
-        logging.getLogger("hoist").setLevel(log_level or logging.INFO)
+
+        if log_level:
+            logging.getLogger("hoist").setLevel(log_level)
+
         self._minimum_version = minimum_version
         self._operations = {**BASE_OPERATIONS, **(extra_operations or {})}
         self._supported_operations = supported_operations or ["*"]
         self._unsupported_operations = unsupported_operations or []
         self._clients: List[Socket] = []
         self._server: Optional[UvicornServer] = None
+        self._start_called: bool = False
         super().__init__(extra_listeners)
 
     @property
-    def supported_operations(self) -> List[str]:
+    def supported_operations(self) -> Sequence[str]:
         """Operations supported by the server."""
         return self._supported_operations
 
     @property
-    def unsupported_operations(self) -> List[str]:
+    def unsupported_operations(self) -> Sequence[str]:
         """Operations blacklisted by the server."""
         return self._unsupported_operations
 
@@ -419,7 +423,8 @@ class Server(MessageListener):
         )
 
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(
+
+        loop.create_task(
             self._ensure_none(
                 URL.build(
                     host=host,
@@ -437,6 +442,8 @@ class Server(MessageListener):
             raise RuntimeError(
                 "server cannot start from a running event loop",
             ) from e
+
+        self._start_called = True
 
     async def broadcast(
         self,
@@ -460,8 +467,13 @@ class Server(MessageListener):
     def close(self) -> None:
         """Close the server."""
         if not self._server:
+            hlp = (
+                "call close twice"
+                if self._start_called
+                else "forget to call start"  # fmt: off
+            )
             raise ServerNotStartedError(
-                "server is not started (did you call close twice?)"
+                f"server is not started (did you {hlp}?)",
             )
         self._server.close_thread()
         self._server = None
@@ -470,3 +482,4 @@ class Server(MessageListener):
             "shutdown",
             "closed server",
         )
+        self._start_called = False

@@ -109,7 +109,7 @@ def start(
     **kwargs,
 ) -> Server:
     """Start a Hoist server in a new thread."""
-    srvr = server or Server(token, *kwargs)
+    srvr = server or Server(token, **kwargs)
     srvr.start(host=host, port=port)
     return srvr
 
@@ -126,5 +126,5 @@ def debug(
     )
 
     if enable_uvicorn:
-        logging.getLogger("uvicorn.error").disabled = True
-        logging.getLogger("uvicorn.access").disabled = True
+        logging.getLogger("uvicorn.error").disabled = False
+        logging.getLogger("uvicorn.access").disabled = False

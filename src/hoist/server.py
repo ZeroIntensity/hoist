@@ -2,7 +2,7 @@ import logging
 from contextlib import suppress
 from secrets import choice, compare_digest
 from string import ascii_letters
-from typing import Any, List, NoReturn, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 import uvicorn
 from rich.console import Console
@@ -23,6 +23,7 @@ from ._socket import ClientError, Socket, make_client, make_client_msg
 from ._typing import (
     LoginFunc, MessageListeners, Operations, Payload, Schema, VersionLike
 )
+from ._uvicorn import UvicornServer
 from .exceptions import CloseSocket, SchemaValidationError
 from .message import Message
 from .version import __version__
@@ -118,6 +119,7 @@ class Server(MessageListener):
         self._supported_operations = supported_operations or ["*"]
         self._unsupported_operations = unsupported_operations or []
         self._clients: List[Socket] = []
+        self._server: Optional[UvicornServer] = None
         super().__init__(extra_listeners)
 
     @property
@@ -338,7 +340,7 @@ class Server(MessageListener):
         *,
         host: str = "0.0.0.0",
         port: int = 5000,
-    ) -> NoReturn:  # type: ignore
+    ) -> None:  # type: ignore
         """Start the server."""
 
         async def _app(
@@ -389,7 +391,9 @@ class Server(MessageListener):
         )
 
         try:
-            uvicorn.run(_app, host=host, port=port, lifespan="on")
+            config = uvicorn.Config(_app, host=host, port=port, lifespan="on")
+            self._server = UvicornServer(config)
+            self._server.run_in_thread()
         except RuntimeError as e:
             raise RuntimeError(
                 "server cannot start from a running event loop",
@@ -408,3 +412,13 @@ class Server(MessageListener):
                 SINGLE_NEW_MESSAGE,
             )
             await transport.message(message, payload)
+
+    def close(self) -> None:
+        """Close the server."""
+        assert self._server
+        self._server.close_thread()
+
+        log(
+            "shutdown",
+            "closed server",
+        )

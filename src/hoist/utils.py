@@ -2,8 +2,7 @@ import asyncio
 import inspect
 import logging
 import os
-from contextlib import asynccontextmanager
-from threading import Thread
+from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Awaitable, Callable, Coroutine, Optional, Union
 
 from rich.console import Console
@@ -20,6 +19,7 @@ __all__ = (
     "start",
     "connect_to",
     "debug",
+    "serve",
 )
 
 
@@ -52,6 +52,24 @@ async def connect(
         yield conn
     finally:
         await conn.close()
+
+
+@contextmanager
+def serve(
+    token: Optional[str] = None,
+    server: Optional[Server] = None,
+    *,
+    host: str = "0.0.0.0",
+    port: int = 5000,
+    **kwargs,
+):
+    """Serve a Hoist server."""
+    try:
+        srvr = server or Server(token, *kwargs)
+        srvr.start(host=host, port=port)
+        yield srvr
+    finally:
+        srvr.close()
 
 
 def connect_to(
@@ -92,14 +110,7 @@ def start(
 ) -> Server:
     """Start a Hoist server in a new thread."""
     srvr = server or Server(token, *kwargs)
-    t = Thread(
-        target=srvr.start,
-        kwargs={
-            "host": host,
-            "port": port,
-        },
-    )
-    t.start()
+    srvr.start(host=host, port=port)
     return srvr
 
 

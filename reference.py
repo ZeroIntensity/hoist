@@ -3,6 +3,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Optional, Type, get_type_hints
 
+from rich import print
 from versions import Version  # noqa
 from yarl import URL  # noqa
 
@@ -196,6 +197,8 @@ def generate_reference():
             )
             dcs = [f"### `{obj}`\n\n{dc}" for obj, dc in v.items()]
             f.write(f"## {mod}\n\n{NEWLINE.join(dcs)}\n\n")
+
+    print("Successfully wrote to [bold blue]reference.md[/]")
 
 
 if __name__ == "__main__":

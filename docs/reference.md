@@ -70,6 +70,15 @@
 ---
 
 
+### `InvalidVersionError`
+
+
+
+**Version is not high enough.**
+
+---
+
+
 ### `NotConnectedError`
 
 
@@ -96,7 +105,7 @@ def current() -> Optional[Type[Any]]
 
 *Current type.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L94)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L95)
 
 ---
 #### `needed`
@@ -108,7 +117,7 @@ def needed() -> Union[Type[Any], Tuple[Optional[Type[Any]], ...]]
 
 *Type(s) needed to be valid.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L89)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L90)
 
 ---
 ### `ServerConnectError`
@@ -143,15 +152,6 @@ def needed() -> Union[Type[Any], Tuple[Optional[Type[Any]], ...]]
 *Derives from `hoist.exceptions._ResponseError`*
 
 **Generic bad server response.**
-
----
-
-
-### `InvalidVersionError`
-
-
-
-**Version is not high enough.**
 
 ---
 
@@ -194,7 +194,7 @@ def code() -> int
 
 *Error code.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L38)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L39)
 
 ---
 #### `error`
@@ -206,7 +206,7 @@ def error() -> str
 
 *Error name.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L43)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L44)
 
 ---
 #### `message`
@@ -218,7 +218,7 @@ def message() -> str
 
 *Error message.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L48)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L49)
 
 ---
 #### `payload`
@@ -230,7 +230,7 @@ def payload() -> Optional[Dict[str, Any]]
 
 *Error payload.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L53)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/exceptions.py#L54)
 
 ---
 
@@ -282,7 +282,7 @@ def connect(
 
 *Open the connection.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/client.py#L101)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/client.py#L110)
 
 ---
 
@@ -298,7 +298,7 @@ def message(
 
 *Send a message to the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/client.py#L174)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/client.py#L183)
 
 ---
 #### `closed`
@@ -504,7 +504,7 @@ def close() -> None
 
 *Close the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L480)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L487)
 
 ---
 
@@ -522,6 +522,30 @@ def start(
 [Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L412)
 
 ---
+
+#### `stop`
+```py
+
+def stop() -> None
+```
+
+*Alias to `Server.close`.*
+
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L512)
+
+---
+#### `running`
+
+```py
+@property
+def running() -> bool
+```
+
+*Whether the server is running.*
+
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L507)
+
+---
 #### `supported_operations`
 
 ```py
@@ -531,7 +555,7 @@ def supported_operations() -> Sequence[str]
 
 *Operations supported by the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L139)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L138)
 
 ---
 #### `token`
@@ -543,7 +567,7 @@ def token() -> str
 
 *Authentication token used to connect.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L182)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L181)
 
 ---
 #### `unsupported_operations`
@@ -555,7 +579,7 @@ def unsupported_operations() -> Sequence[str]
 
 *Operations blacklisted by the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L144)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L143)
 
 ---
 ### `_SocketMessageTransport`
@@ -591,7 +615,7 @@ def message(
 
 *Send a message to the client.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L76)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L75)
 
 ---
 
@@ -607,7 +631,7 @@ def _base_login(
 
 *Default login function used by servers.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L46)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L45)
 
 ---
 
@@ -622,7 +646,7 @@ def _invalid_payload(
 
 *Raise an invalid payload error.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L51)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L50)
 
 ---
 
@@ -1183,9 +1207,9 @@ def connect_to(
 )
 ```
 
-*Connect to a server with a decorator.*
+*Call a function with the connection.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/utils.py#L75)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/utils.py#L76)
 
 ---
 
@@ -1201,7 +1225,7 @@ def debug(
 
 *Enable debug logging.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/utils.py#L117)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/utils.py#L123)
 
 ---
 
@@ -1250,8 +1274,8 @@ def start(
 ) -> Server
 ```
 
-*Start a Hoist server in a new thread.*
+*Start a Hoist server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/utils.py#L103)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/utils.py#L109)
 
 ---

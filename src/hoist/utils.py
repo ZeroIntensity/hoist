@@ -78,7 +78,7 @@ def connect_to(
     token: str,
     **kwargs: Any,
 ):
-    """Connect to a server with a decorator."""
+    """Call a function with the connection."""
 
     def inner(func: Callable[[Connection], Awaitable[Any]]):
         async def _wrapper():
@@ -96,7 +96,12 @@ def connect_to(
                 if not conn.closed:
                     await conn.close()
 
-        asyncio.run(_wrapper())
+        coro = _wrapper()
+
+        try:
+            asyncio.run(coro)
+        except RuntimeError:
+            asyncio.get_event_loop().create_task(coro)
 
     return inner
 
@@ -109,7 +114,7 @@ def start(
     port: int = 5000,
     **kwargs,
 ) -> Server:
-    """Start a Hoist server in a new thread."""
+    """Start a Hoist server."""
     srvr = server or Server(token, **kwargs)
     srvr.start(host=host, port=port)
     return srvr

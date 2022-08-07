@@ -33,7 +33,7 @@ def _decode_hint(hint: Type[Any]) -> str:
     if ("typing." in string) and ("_typing." not in string):
         return _patch_hint(string)
 
-    return _patch_hint(hint.__qualname__)
+    return _patch_hint(hint.__name__)
 
 
 def _get_source(func: Callable) -> str:

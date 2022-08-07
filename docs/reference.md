@@ -6,6 +6,7 @@
 
     Everything in this module derives from `BaseException`, and may be raised.
 
+
 ### `AlreadyConnectedError`
 
 
@@ -491,7 +492,7 @@ def broadcast(
 
 *Send a message to all connections.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L472)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L461)
 
 ---
 
@@ -503,7 +504,7 @@ def close() -> None
 
 *Close the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L491)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L480)
 
 ---
 
@@ -518,7 +519,7 @@ def start(
 
 *Start the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L423)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L412)
 
 ---
 #### `supported_operations`
@@ -530,7 +531,7 @@ def supported_operations() -> Sequence[str]
 
 *Operations supported by the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L150)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L139)
 
 ---
 #### `token`
@@ -542,7 +543,7 @@ def token() -> str
 
 *Authentication token used to connect.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L193)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L182)
 
 ---
 #### `unsupported_operations`
@@ -554,7 +555,7 @@ def unsupported_operations() -> Sequence[str]
 
 *Operations blacklisted by the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L155)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L144)
 
 ---
 ### `_SocketMessageTransport`
@@ -590,7 +591,7 @@ def message(
 
 *Send a message to the client.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L87)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L76)
 
 ---
 
@@ -606,7 +607,7 @@ def _base_login(
 
 *Default login function used by servers.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L57)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L46)
 
 ---
 
@@ -621,7 +622,7 @@ def _invalid_payload(
 
 *Raise an invalid payload error.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L62)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/server.py#L51)
 
 ---
 
@@ -657,7 +658,7 @@ def close() -> None
 
 *Close the socket.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L182)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L176)
 
 ---
 
@@ -671,7 +672,7 @@ def login(
 
 *Send login message to the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L152)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L146)
 
 ---
 
@@ -686,7 +687,7 @@ def send(
 
 *Send a message to the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L217)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L211)
 
 ---
 #### `logged`
@@ -698,7 +699,7 @@ def logged() -> bool
 
 *Whether the socket has authenticated with the server.*
 
-[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L177)
+[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/_client_ws.py#L171)
 
 ---
 ### `_Response`

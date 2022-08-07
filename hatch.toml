@@ -21,11 +21,13 @@ dependencies = [
 ]
 [envs.default.scripts]
 tests = "ward --path tests"
-build = "npm run --prefix ./page build && python3 reference.py"
+sbuild = "npm run --prefix ./page build && python3 reference.py && hatch run docs:build"
+build = "hatch run sbuild && hatch build"
 
 [envs.docs]
 dependencies = [
-  "mkdocs"
+  "mkdocs",
+  "mkdocs-material",
 ]
 [envs.docs.scripts]
 build = "mkdocs build --clean"

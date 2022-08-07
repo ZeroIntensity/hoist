@@ -1,3 +1,3 @@
 [build]
-command = "hatch run sbuild"
+command = "hatch run dbuild"
 publish = "site"

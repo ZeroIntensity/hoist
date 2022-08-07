@@ -22,7 +22,8 @@ dependencies = [
 [envs.default.scripts]
 tests = "ward --path tests"
 dbuild = "python3 reference.py && hatch run docs:build"
-sbuild = "npm run --prefix ./page build && hatch run dbuild"
+pbuild = "npm install --prefix ./page && npm run --prefix ./page build"
+sbuild = "hatch run pbuild && hatch run dbuild"
 build = "hatch run sbuild && hatch build"
 
 [envs.docs]

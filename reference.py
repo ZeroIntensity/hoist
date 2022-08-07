@@ -1,6 +1,6 @@
 import inspect
 from pathlib import Path
-from types import ModuleType, NoneType
+from types import ModuleType
 from typing import Any, Callable, Dict, Optional, Type, get_type_hints
 
 from versions import Version  # noqa
@@ -157,7 +157,7 @@ def generate_reference_dict(
                     dict,
                     list,
                     float,
-                    NoneType,
+                    type(None),
                     tuple,
                 ),
             ):

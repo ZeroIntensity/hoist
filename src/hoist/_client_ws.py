@@ -48,6 +48,7 @@ class ServerSocket:
         self._client = client
 
     async def _rc(self) -> _Response:
+        """Receive and parse a server response."""
         json = await self._ws.receive_json()
         hlog(
             "receive",
@@ -57,6 +58,7 @@ class ServerSocket:
         return _Response(**json)
 
     async def _recv(self) -> _Response:
+        """High level function to properly accept data from the server."""
         res = await self._rc()
         messages: List[Payload] = []
 

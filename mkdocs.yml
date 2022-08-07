@@ -5,6 +5,7 @@ nav:
     - Getting Started: getting_started.md
     - Servers: servers.md
     - Messages: messages.md
+    - Reference: reference.md
 theme:
     name: material
     palette:

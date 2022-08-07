@@ -44,10 +44,12 @@ __all__ = ("Server",)
 
 
 async def _base_login(server: "Server", sent_token: str) -> bool:
+    """Default login function used by servers."""
     return compare_digest(server.token, sent_token)
 
 
 def _invalid_payload(exc: SchemaValidationError) -> Payload:
+    """Raise an invalid payload error."""
     needed = exc.needed
 
     return {
@@ -59,6 +61,8 @@ def _invalid_payload(exc: SchemaValidationError) -> Payload:
 
 
 class _SocketMessageTransport:
+    """Connection class for wrapping message objects."""
+
     def __init__(
         self,
         ws: Socket,
@@ -143,6 +147,7 @@ class Server(MessageListener):
         return self._unsupported_operations
 
     def _verify_operations(self) -> None:
+        """Verify current operations lists."""
         so = self.supported_operations
         uo = self.unsupported_operations
 
@@ -162,6 +167,7 @@ class Server(MessageListener):
     async def _verify_operation(  # not sure if i need async here
         self, operation: str
     ) -> bool:
+        """Verify that an operation is supported by the server."""
         so = self.supported_operations
         uo = self.unsupported_operations
 
@@ -184,6 +190,7 @@ class Server(MessageListener):
         payload: Payload,
         schema: Schema,
     ) -> List[Any]:
+        """Verify a JSON object received from the user via a schema."""
         try:
             verify_schema(
                 schema,
@@ -198,6 +205,7 @@ class Server(MessageListener):
         return [payload[i] for i in schema]
 
     async def _process_operation(self, ws: Socket, payload: Payload) -> None:
+        """Execute an operation."""
         operation, data = await self._handle_schema(
             ws,
             payload,
@@ -223,6 +231,7 @@ class Server(MessageListener):
         await ws.success()
 
     async def _process_message(self, ws: Socket, payload: Payload) -> None:
+        """Call message listeners."""
         message, data, replying = await self._handle_schema(
             ws,
             payload,
@@ -257,6 +266,7 @@ class Server(MessageListener):
         await ws.success(message=LISTENER_CLOSE)
 
     async def _ws_wrapper(self, ws: Socket) -> None:
+        """Main implementation of WebSocket logic."""
         version, token = await ws.recv(
             {
                 "version": str,
@@ -306,6 +316,7 @@ class Server(MessageListener):
                 await ws.error(INVALID_ACTION)
 
     async def _ws(self, ws: Socket) -> None:
+        """WebSocket entry point for Starlette."""  # noqa
         self._clients.append(ws)
 
         try:
@@ -351,6 +362,7 @@ class Server(MessageListener):
         receive: Receive,
         send: Send,
     ) -> None:
+        """Main Starlette app implementation."""
         typ: str = scope["type"]
 
         if typ != "lifespan":
@@ -389,6 +401,7 @@ class Server(MessageListener):
 
     @staticmethod
     async def _ensure_none(url: URL):
+        """Ensure that the target URL is not already being used."""
         async with aiohttp.ClientSession() as s:
             with suppress(aiohttp.ClientConnectionError):
                 async with s.get(url):

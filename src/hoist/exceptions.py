@@ -2,6 +2,22 @@ from typing import Any, Dict, Optional, Type
 
 from ._typing import Payload, SchemaNeededType
 
+__all__ = (
+    "ServerResponseError",
+    "ServerLoginError",
+    "ClientError",
+    "SchemaValidationError",
+    "NotConnectedError",
+    "InvalidOperationError",
+    "AlreadyConnectedError",
+    "InvalidActionError",
+    "ServerConnectError",
+    "BadContentError",
+    "ConnectionFailedError",
+    "ServerNotStartedError",
+    "AlreadyInUseError",
+)
+
 
 class _ResponseError(Exception):
     def __init__(

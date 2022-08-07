@@ -21,7 +21,7 @@ dependencies = [
 ]
 [envs.default.scripts]
 tests = "ward --path tests"
-build = "npm run --prefix ./page build"
+build = "npm run --prefix ./page build && python3 reference.py"
 
 [envs.docs]
 dependencies = [

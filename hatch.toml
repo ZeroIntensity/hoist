@@ -17,7 +17,7 @@ packages = ["src/hoist"]
 dependencies = [
   "ward",
   "aiohttp",
-  "requests"
+  "versions",
 ]
 [envs.default.scripts]
 tests = "ward --path tests"

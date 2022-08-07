@@ -8,7 +8,7 @@ from yarl import URL
 
 from ._client_ws import ServerSocket
 from ._errors import *
-from ._logging import hlog
+from ._logging import hlog, log
 from ._messages import MessageListener
 from ._typing import MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
@@ -66,7 +66,10 @@ class Connection(MessageListener):
 
     async def close(self) -> None:
         """Close the connection."""
-        self._connected = False
+        if self.closed:
+            raise NotConnectedError(
+                "connection is already closed (did you call close twice?)",
+            )
 
         if self._ws:
             await self._ws.close()
@@ -76,7 +79,13 @@ class Connection(MessageListener):
 
     async def _ack(self, url: URL) -> None:
         async with self._session.get(url.with_path("/hoist/ack")) as response:
-            json = await response.json()
+            try:
+                json = await response.json()
+            except aiohttp.ContentTypeError as e:
+                raise ServerConnectError(
+                    "failed to acknowledge the server (does it support hoist?)"
+                ) from e
+
             hlog(
                 "ack",
                 json,
@@ -202,3 +211,7 @@ class Connection(MessageListener):
             data=d,
             replying=replying,
         )
+
+    def __del__(self) -> None:
+        if not self.closed:
+            log("close", "connection was not closed", level=logging.DEBUG)

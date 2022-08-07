@@ -1,3 +1,5 @@
+import string
+
 import aiohttp
 from ward import raises, test
 
@@ -25,3 +27,33 @@ async def _():
         with raises(hoist.ServerLoginError):
             async with hoist.connect("x"):
                 ...
+
+
+@test("auto token generation")
+async def _():
+    with hoist.serve() as s:
+        assert len(s.token) == 25
+
+    with hoist.serve(default_token_len=50) as s:
+        assert len(s.token) == 50
+
+    with hoist.serve(default_token_choices=string.digits) as s:
+        assert s.token.isdigit()
+
+
+@test("server error handling")
+async def _():
+    server = hoist.Server()
+
+    with raises(hoist.ServerNotStartedError):
+        await server.broadcast("")
+
+    with raises(hoist.ServerNotStartedError):
+        server.close()
+
+    server.start()
+
+    with raises(hoist.AlreadyInUseError):
+        server.start()
+
+    server.close()

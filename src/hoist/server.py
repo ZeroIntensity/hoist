@@ -1,11 +1,10 @@
-import asyncio
 import logging
+import socket
 from contextlib import suppress
 from secrets import choice, compare_digest
 from string import ascii_letters
 from typing import Any, List, Optional, Sequence, Union
 
-import aiohttp
 import uvicorn
 from rich.console import Console
 from starlette.responses import HTMLResponse, JSONResponse, Response
@@ -400,14 +399,15 @@ class Server(MessageListener):
                 await response(scope, receive, send)
 
     @staticmethod
-    async def _ensure_none(url: URL):
+    def _ensure_none(url: URL):
         """Ensure that the target URL is not already being used."""
-        async with aiohttp.ClientSession() as s:
-            with suppress(aiohttp.ClientConnectionError):
-                async with s.get(url):
-                    raise AlreadyInUseError(
-                        f"{url} is an existing server (did you forget to close it?)",  # noqa
-                    )
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex((url.host, url.port))
+
+        if not result:
+            raise AlreadyInUseError(
+                f"{url} is an existing server (did you forget to close it?)",  # noqa
+            )
 
     def start(  # type: ignore
         self,
@@ -416,6 +416,10 @@ class Server(MessageListener):
         port: int = 5000,
     ) -> None:  # type: ignore
         """Start the server."""
+        if self.running:
+            raise AlreadyInUseError(
+                "server is already running (did you forget to call close?)",
+            )
 
         async def _app(
             scope: Scope,
@@ -435,15 +439,11 @@ class Server(MessageListener):
             f"starting server on [bold cyan]{host}:{port}[/]{tokmsg}",
         )
 
-        loop = asyncio.get_event_loop()
-
-        loop.create_task(
-            self._ensure_none(
-                URL.build(
-                    host=host,
-                    port=port,
-                    scheme="http",
-                )
+        self._ensure_none(
+            URL.build(
+                host=host,
+                port=port,
+                scheme="http",
             )
         )
 
@@ -467,6 +467,13 @@ class Server(MessageListener):
         if not self._server:
             raise ServerNotStartedError(
                 "server is not started (did you forget to call start?)"
+            )
+
+        if not self._clients:
+            log(
+                "broadcast",
+                "no clients are connected",
+                level=logging.WARNING,
             )
 
         for i in self._clients:
@@ -496,3 +503,12 @@ class Server(MessageListener):
             "closed server",
         )
         self._start_called = False
+
+    @property
+    def running(self) -> bool:
+        """Whether the server is running."""
+        return bool(self._server)
+
+    def stop(self) -> None:
+        """Alias to `Server.close`."""
+        self.close()

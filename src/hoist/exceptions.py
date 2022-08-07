@@ -6,6 +6,7 @@ __all__ = (
     "ServerResponseError",
     "ServerLoginError",
     "ClientError",
+    "InvalidVersionError",
     "SchemaValidationError",
     "NotConnectedError",
     "InvalidOperationError",

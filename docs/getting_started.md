@@ -2,6 +2,8 @@
 
 ## Installation
 
+### Pip
+
 === "Linux/Mac"
 
     ```
@@ -13,6 +15,15 @@
     ```
     py -m pip install -U hoist-http
     ```
+
+### From Source
+
+```
+git clone https://github.com/ZeroIntensity/hoist && cd hoist
+pip install .
+```
+
+### Development
 
 ## Basic Server
 

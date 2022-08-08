@@ -21,6 +21,7 @@ env:
         hatch run tests
     CIBW_SKIP: >
         pp*
+    CIBW_TEST_REQUIRES: hatch
 
 jobs:
     binary-wheels-standard:
@@ -38,7 +39,7 @@ jobs:
                   fetch-depth: 0
 
             - name: Build wheels
-              uses: pypa/cibuildwheel@v2.3.1
+              uses: pypa/cibuildwheel@v2.8.1
               env:
                   CIBW_ARCHS_MACOS: x86_64
                   HATCH_BUILD_HOOKS_ENABLE: "true"
@@ -92,7 +93,7 @@ jobs:
                   platforms: arm64
 
             - name: Build wheels
-              uses: pypa/cibuildwheel@v2.3.1
+              uses: pypa/cibuildwheel@v2.8.1
               env:
                   CIBW_ARCHS_LINUX: aarch64
                   HATCH_BUILD_HOOKS_ENABLE: "true"

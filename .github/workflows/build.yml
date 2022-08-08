@@ -18,10 +18,7 @@ env:
     CIBW_ENVIRONMENT_PASS_LINUX: >
         HATCH_BUILD_HOOKS_ENABLE
     CIBW_TEST_COMMAND: >
-        python -c
-        "from hatch_showcase.fib import fibonacci;
-        assert fibonacci(32) == 2178309
-        "
+        hatch run tests
     CIBW_SKIP: >
         pp*
 

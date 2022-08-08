@@ -1,3 +1,8 @@
+VERSTRING = (
+    f"{{_VER.release}}{{f' ({{RELEASE_TYPE}})' if any({{IS_DEV, IS_PRE}}) else ''}}",  # noqa
+)
+# using an f-string here to simulate the actual build
+
 with open("./dist/output.html", "w") as dist:
     with open("./index.html") as html:
         with open("./dist/output.css") as css:
@@ -13,8 +18,20 @@ with open("./dist/output.html") as dist:
         f.write(
             f"""from .version import __version__
 
+from versions import parse_version
+
+_VER = parse_version(__version__)
+IS_DEV: bool = _VER.is_dev_release()
+IS_PRE: bool = _VER.is_pre_release()
+RELEASE_TYPE: str = (
+    "Pre-Release" if IS_PRE else "Development" if IS_DEV else ""
+)  # fmt: off
+
 __all__ = ("HTML",)
 
-HTML = r'''{dist.read()}'''.replace('{{version}}', __version__)
+HTML = r'''{dist.read()}'''.replace(
+    "{{version}}",
+    {VERSTRING}
+)
 """
         )

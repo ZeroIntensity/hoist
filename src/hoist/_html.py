@@ -1,8 +1,17 @@
+from versions import parse_version
+
 from .version import __version__
+
+_VER = parse_version(__version__)
+IS_DEV: bool = _VER.is_dev_release()
+IS_PRE: bool = _VER.is_pre_release()
+RELEASE_TYPE: str = (
+    "Pre-Release" if IS_PRE else "Development" if IS_DEV else ""
+)  # fmt: off
 
 __all__ = ("HTML",)
 
-HTML = r'''<!DOCTYPE html>
+HTML = r"""<!DOCTYPE html>
 <html lang="en">
     <head>
         <title>Hoist</title>
@@ -732,4 +741,7 @@ video {
             </div>
         </div>
     </body>
-</html>'''.replace('{version}', __version__)
+</html>""".replace(
+    "{version}",
+    f"{_VER.release}{f' ({RELEASE_TYPE})' if any({IS_DEV, IS_PRE}) else ''}",
+)

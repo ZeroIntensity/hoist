@@ -3,8 +3,8 @@ from typing import Optional
 import click
 from rich import print
 
+from .__about__ import __version__
 from .server import Server
-from .version import __version__
 
 
 @click.command()

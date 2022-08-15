@@ -3,7 +3,7 @@ import socket
 from contextlib import suppress
 from secrets import choice, compare_digest
 from string import ascii_letters
-from typing import Any, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence
 
 import uvicorn
 from rich.console import Console
@@ -13,14 +13,17 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from versions import Version, parse_version
 from yarl import URL
 
+from .__about__ import __version__
 from ._errors import *
 from ._html import HTML
 from ._logging import hlog, log
 from ._messages import (
     LISTENER_CLOSE, LISTENER_OPEN, NEW_MESSAGE, SINGLE_NEW_MESSAGE,
-    MessageListener, create_message
+    BaseMessagable, MessageListener
 )
-from ._operations import BASE_OPERATIONS, call_operation, verify_schema
+from ._operations import (
+    BASE_OPERATIONS, call_operation, invalid_payload, verify_schema
+)
 from ._socket import ClientError, Socket, make_client, make_client_msg
 from ._typing import (
     LoginFunc, MessageListeners, Operations, Payload, Schema, VersionLike
@@ -30,8 +33,10 @@ from .exceptions import (
     AlreadyInUseError, CloseSocket, SchemaValidationError,
     ServerNotStartedError
 )
-from .message import Message
-from .version import __version__
+from .message import Message, PendingMessage
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsLenAndGetItem
 
 logging.getLogger("uvicorn.error").disabled = True
 logging.getLogger("uvicorn.access").disabled = True
@@ -47,53 +52,62 @@ async def _base_login(server: "Server", sent_token: str) -> bool:
     return compare_digest(server.token, sent_token)
 
 
-def _invalid_payload(exc: SchemaValidationError) -> Payload:
-    """Raise an invalid payload error."""
-    needed = exc.needed
-
-    return {
-        "current": exc.current,
-        "needed": exc.needed.__name__  # type: ignore
-        if not isinstance(needed, tuple)
-        else [i.__name__ if i else str(i) for i in needed],
-    }
-
-
-class _SocketMessageTransport:
+class _SocketMessageTransport(BaseMessagable):
     """Connection class for wrapping message objects."""
 
     def __init__(
         self,
         ws: Socket,
         server: "Server",
+        id: Optional[int],
         event_message: str = NEW_MESSAGE,
     ) -> None:
         self._ws = ws
         self._server = server
         self._message = event_message
+        self._id = id
 
     async def message(
         self,
         msg: str,
         data: Optional[Payload] = None,
         replying: Optional[Message] = None,
+        listeners: Optional[MessageListeners] = None,
     ) -> Message:
         """Send a message to the client."""
         d = data or {}
+        reply = replying.to_dict() if replying else None
+
+        obj = await self._server.new_message(
+            self,
+            msg,
+            d,
+            reply,
+        )
+        obj.message_listeners = listeners or {}
 
         await self._ws.success(
+            self._id,
             message=self._message,
             payload={
                 "message": msg,
                 "data": d,
-                "replying": replying.to_dict() if replying else None,
+                "replying": reply,
+                "id": obj.id,
             },
         )
 
-        return Message(
+        return obj
+
+    async def pend_message(
+        self,
+        msg: Optional[str] = None,
+        data: Optional[Payload] = None,
+        replying: Optional[Message] = None,
+    ) -> PendingMessage:
+        return PendingMessage(
             self,
             msg,
-            self._server._current_id,
             data=data,
             replying=replying,
         )
@@ -107,7 +121,7 @@ class Server(MessageListener):
         token: Optional[str] = None,
         *,
         default_token_len: int = 25,
-        default_token_choices: Union[str, Sequence[str]] = ascii_letters,
+        default_token_choices: "SupportsLenAndGetItem[str]" = ascii_letters,
         hide_token: bool = False,
         login_func: LoginFunc = _base_login,
         log_level: Optional[int] = None,
@@ -117,7 +131,7 @@ class Server(MessageListener):
         supported_operations: Optional[Sequence[str]] = None,
         extra_listeners: Optional[MessageListeners] = None,
     ) -> None:
-        self._token = token or "".join(
+        self._token: str = token or "".join(
             [choice(default_token_choices) for _ in range(default_token_len)],
         )
         self._hide_token = hide_token
@@ -198,12 +212,17 @@ class Server(MessageListener):
         except SchemaValidationError as e:
             await ws.error(
                 INVALID_CONTENT,
-                payload=_invalid_payload(e),
+                payload=invalid_payload(e),
             )
 
         return [payload[i] for i in schema]
 
-    async def _process_operation(self, ws: Socket, payload: Payload) -> None:
+    async def _process_operation(
+        self,
+        ws: Socket,
+        payload: Payload,
+        id: int,
+    ) -> None:
         """Execute an operation."""
         operation, data = await self._handle_schema(
             ws,
@@ -225,11 +244,16 @@ class Server(MessageListener):
         try:
             await call_operation(op, data)
         except SchemaValidationError as e:
-            await ws.error(INVALID_CONTENT, payload=_invalid_payload(e))
+            await ws.error(INVALID_CONTENT, payload=invalid_payload(e))
 
-        await ws.success()
+        await ws.success(id)
 
-    async def _process_message(self, ws: Socket, payload: Payload) -> None:
+    async def _process_message(
+        self,
+        ws: Socket,
+        payload: Payload,
+        id: int,
+    ) -> None:
         """Call message listeners."""
         message, data, replying = await self._handle_schema(
             ws,
@@ -241,9 +265,13 @@ class Server(MessageListener):
             },
         )
 
-        transport = _SocketMessageTransport(ws, self)
+        transport = _SocketMessageTransport(ws, self, id)
+        obj = await self.new_message(transport, message, data, replying)
+        mid = obj.id
+
         await ws.success(
-            payload={"id": self._current_id + 1},
+            id,
+            payload={"id": mid},
             message=LISTENER_OPEN,
         )
 
@@ -252,24 +280,24 @@ class Server(MessageListener):
                 transport,
                 message,
                 data,
-                await create_message(transport, replying)
-                if replying
-                else None,  # fmt: off
+                replying,
+                mid,
             )
         except Exception as e:
             if isinstance(e, SchemaValidationError):
-                await ws.error(INVALID_CONTENT, payload=_invalid_payload(e))
+                await ws.error(INVALID_CONTENT, payload=invalid_payload(e))
 
-            raise e
+            await self._internal_error(ws, e)
 
-        await ws.success(message=LISTENER_CLOSE)
+        await ws.success(id, message=LISTENER_CLOSE)
 
     async def _ws_wrapper(self, ws: Socket) -> None:
         """Main implementation of WebSocket logic."""
-        version, token = await ws.recv(
+        version, token, id = await ws.recv(
             {
                 "version": str,
                 "token": str,
+                "id": int,
             }
         )
 
@@ -291,7 +319,7 @@ class Server(MessageListener):
         if not (await self._login_func(self, token)):
             await ws.error(LOGIN_FAILED)
 
-        await ws.success()
+        await ws.success(id)
 
         log(
             "login",
@@ -300,17 +328,18 @@ class Server(MessageListener):
 
         while True:
             data: Payload
-            action, data = await ws.recv(
+            action, data, nid = await ws.recv(
                 {
                     "action": str,
                     "data": dict,
+                    "id": int,
                 }
             )
 
             if action == "operation":
-                await self._process_operation(ws, data)
+                await self._process_operation(ws, data, nid)
             elif action == "message":
-                await self._process_message(ws, data)
+                await self._process_message(ws, data, nid)
             else:
                 await ws.error(INVALID_ACTION)
 
@@ -348,12 +377,24 @@ class Server(MessageListener):
                     f"exception occured while receiving{make_client_msg(addr)}",  # noqa
                     level=logging.CRITICAL,
                 )
-                print_exc(show_locals=True)
 
-                with suppress(ClientError):
-                    await ws.error(SERVER_ERROR)
+                await self._internal_error(ws, e)
+                await ws.close(1003)
 
         self._clients.remove(ws)
+
+    async def _internal_error(
+        self,
+        ws: Socket,
+        e: Exception,
+    ):
+        print_exc(show_locals=True)
+
+        with suppress(ClientError):
+            await ws.error(
+                SERVER_ERROR,
+                payload={"message": str(e), "exc": e.__class__.__name__},
+            )
 
     async def _app(
         self,
@@ -428,17 +469,6 @@ class Server(MessageListener):
         ) -> None:
             await self._app(scope, receive, send)
 
-        tokmsg: str = (
-            f" with token [bold blue]{self.token}[/]"
-            if not self._hide_token
-            else ""  # fmt: off
-        )
-
-        log(
-            "startup",
-            f"starting server on [bold cyan]{host}:{port}[/]{tokmsg}",
-        )
-
         self._ensure_none(
             URL.build(
                 host=host,
@@ -450,7 +480,7 @@ class Server(MessageListener):
         try:
             config = uvicorn.Config(_app, host=host, port=port, lifespan="on")
             self._server = UvicornServer(config)
-            self._server.run_in_thread()
+            self._server.run_in_thread(self._hide_token, self.token)
         except RuntimeError as e:
             raise RuntimeError(
                 "server cannot start from a running event loop",
@@ -480,6 +510,7 @@ class Server(MessageListener):
             transport = _SocketMessageTransport(
                 i,
                 self,
+                None,
                 SINGLE_NEW_MESSAGE,
             )
             await transport.message(message, payload)

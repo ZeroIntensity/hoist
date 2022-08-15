@@ -1,6 +1,8 @@
 import logging
+from abc import ABC, abstractmethod
 from typing import (
-    TYPE_CHECKING, Any, List, Optional, Tuple, TypeVar, Union, get_type_hints
+    TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple, TypeVar,
+    Union, get_type_hints
 )
 
 from typing_extensions import Final
@@ -8,16 +10,19 @@ from typing_extensions import Final
 from ._logging import hlog
 from ._operations import verify_schema
 from ._typing import (
-    DataclassLike, Listener, ListenerData, Messagable, MessageListeners,
-    Payload, Schema
+    DataclassLike, Listener, ListenerData, MessageListeners, Payload, Schema
 )
+from ._warnings import warn
+from .exceptions import SchemaValidationError
 
 if TYPE_CHECKING:
-    from .message import Message
+    from .message import Message, PendingMessage
+
+from contextlib import asynccontextmanager
 
 __all__ = (
     "MessageListener",
-    "create_message",
+    "BaseMessagable",
 )
 
 T = TypeVar("T", bound=DataclassLike)
@@ -28,37 +33,20 @@ LISTENER_CLOSE: Final[str] = "done"
 SINGLE_NEW_MESSAGE: Final[str] = "s_newmsg"
 
 
-async def create_message(conn: Messagable, data: Payload) -> "Message":
-    """Generate a message object from a payload."""
-    from .message import Message
-
-    reply = data.get("replying")
-
-    return Message(
-        conn,
-        data["message"],
-        data["id"],
-        data=data["data"],
-        replying=await create_message(conn, reply) if reply else None,
-    )
-
-
 async def _process_listeners(
     listeners: Optional[List[ListenerData]],
-    msg: str,
-    id: int,
-    payload: Payload,
-    conn: Messagable,
+    message: "Message",
     *,
-    replying: Optional["Message"] = None,
+    hide_warning: bool = False,
 ) -> None:
-    from .message import Message
-
     hlog(
         "listeners",
-        f"processing: {listeners}",
+        f"processing list - {listeners}",
         level=logging.DEBUG,
     )
+
+    called = False
+    schema_failed: List[str] = []
 
     for i in listeners or ():
         func = i[0]
@@ -66,17 +54,28 @@ async def _process_listeners(
         is_schema: bool = isinstance(param, dict)
 
         schema: Any = param if is_schema else get_type_hints(param)
-        verify_schema(schema, payload)
 
+        try:
+            verify_schema(schema, message.data)
+        except SchemaValidationError:
+            schema_failed.append(func.__name__)
+            continue
+
+        payload = message.data
+        called = True
         await func(
-            Message(
-                conn,
-                msg,
-                id,
-                data=payload,
-                replying=replying,
-            ),
+            message,
             payload if is_schema else param(**payload),  # type: ignore
+        )
+
+    if (not called) and ((not hide_warning) or listeners):
+        failed: str = (
+            f' (function{"s" if len(schema_failed) > 1 else ""} [bold green]{"[/], [bold green]".join(schema_failed)}[/] failed schema validation, enable debug logging for more info)'  # noqa
+            if schema_failed
+            else ""
+        )
+        warn(
+            f'received "{message.content}", but no listeners were called{failed}',  # noqa
         )
 
 
@@ -91,27 +90,51 @@ class MessageListener:
             **(extra_listeners or {}),
         }
         self._current_id = 0
+        self._all_messages: Dict[int, "Message"] = {}
 
     @property
     def message_listeners(self) -> MessageListeners:
         """Listener function for messages."""
         return self._message_listeners
 
+    @message_listeners.setter
+    def message_listeners(self, value: MessageListeners) -> None:
+        self._message_listeners = value
+
     async def _call_listeners(
         self,
-        ws: Messagable,
+        ws: "BaseMessagable",
         message: str,
         payload: Payload,
-        replying: Optional["Message"],
+        replying: Optional[dict],
+        id: int,
     ) -> None:
-        self._current_id += 1
         ml = self.message_listeners
         listeners = ml.get(message)
-        data = (message, self._current_id, payload, ws)
-        await _process_listeners(listeners, *data, replying=replying)
+        obj = await self.create_or_lookup(
+            ws,
+            message,
+            payload,
+            id,
+            replying,
+        )
+        reply = obj.replying
+
+        if reply:
+            await _process_listeners(
+                reply.message_listeners.get(message),
+                reply,
+                hide_warning=True,
+            )
+
+        await _process_listeners(listeners, obj)
 
         glbl = ml.get(None)
-        await _process_listeners(glbl, *data, replying=replying)
+        await _process_listeners(
+            glbl,
+            obj,
+            hide_warning=True,
+        )
 
     def receive(
         self,
@@ -143,3 +166,165 @@ class MessageListener:
     def current_id(self) -> int:
         """Current message ID."""
         return self._current_id
+
+    async def create_message(
+        self,
+        conn: "BaseMessagable",
+        data: Payload,
+    ) -> "Message":
+        """Build a message from a payload."""
+        mid: int = data["id"]
+        self._all_messages[mid] = await self._build_message(conn, data)
+        return self._all_messages[mid]
+
+    async def create_or_lookup(
+        self,
+        conn: "BaseMessagable",
+        content: str,
+        message_data: Payload,
+        id: int,
+        replying: Optional[Union["Message", dict]],
+        *,
+        listeners: Optional[MessageListeners] = None,
+    ) -> "Message":
+        """Create a new message wtih the specified ID, or look it up if it already exists."""  # noqa
+        mid: int = id
+        obj = self._all_messages.get(mid)
+
+        if obj:
+            return obj
+
+        obj = await self.new_message(
+            conn,
+            content,
+            message_data,
+            replying,
+            id=id,
+            listeners=listeners,
+        )
+
+        if listeners:
+            obj.message_listeners = listeners
+
+        return obj
+
+    async def new_message(
+        self,
+        conn: "BaseMessagable",
+        content: str,
+        message_data: Payload,
+        replying: Optional[Union["Message", dict]],
+        *,
+        id: Optional[int] = None,
+        listeners: Optional[MessageListeners] = None,
+    ) -> "Message":
+        """Create a new message."""
+        from .message import Message
+
+        self._current_id += 1
+        mid = id or self._current_id
+
+        if mid in self._all_messages:
+            raise ValueError(
+                f"message {id} has already been created",
+            )
+
+        obj = Message(
+            conn,
+            content,
+            mid,
+            data=message_data,
+            replying=replying
+            if not isinstance(replying, dict)
+            else await self._build_message(
+                conn,
+                replying,
+            ),
+        )
+
+        if listeners:
+            obj.message_listeners = listeners
+
+        self._all_messages[mid] = obj
+        hlog(
+            "message create",
+            f"constructed new message {obj}",
+            level=logging.DEBUG,
+        )
+        return obj
+
+    async def lookup(self, id: int) -> "Message":
+        """Lookup a message by its ID."""
+        obj = self._all_messages[id]
+        hlog(
+            "message lookup",
+            f"looked up {obj}",
+            level=logging.DEBUG,
+        )
+        return obj
+
+    async def _build_message(
+        self,
+        conn: "BaseMessagable",
+        data: Payload,
+    ) -> "Message":
+        """Generate a message object from a payload."""
+        return await self.create_or_lookup(
+            conn,
+            data["message"],
+            data["data"],
+            data["id"],
+            data["replying"],
+        )
+
+
+class BaseMessagable(ABC):
+    """Abstract class representing a messagable target."""
+
+    async def pend_message(
+        self,
+        msg: Optional[str] = None,
+        data: Optional[Payload] = None,
+        replying: Optional["Message"] = None,
+    ) -> "PendingMessage":
+        """Get a message to be sent later."""
+        from .message import PendingMessage
+
+        return PendingMessage(
+            self,
+            msg,
+            data=data,
+            replying=replying,
+        )
+
+    @asynccontextmanager
+    async def message_later(
+        self,
+        msg: Optional[str] = None,
+        data: Optional[Payload] = None,
+        replying: Optional["Message"] = None,
+    ) -> AsyncIterator["PendingMessage"]:
+        """Send a message after the context has finished."""
+        from .message import PendingMessage
+
+        obj = PendingMessage(
+            self,
+            msg,
+            data=data,
+            replying=replying,
+        )
+        try:
+            yield obj
+        finally:
+            await obj.send()
+
+    @abstractmethod
+    async def message(
+        self,
+        msg: str,
+        data: Optional[Payload] = None,
+        replying: Optional["Message"] = None,
+        listeners: Optional[MessageListeners] = None,
+    ) -> "Message":
+        """Send a message."""
+        ...

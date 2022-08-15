@@ -176,7 +176,7 @@ hoist.debug() # equivalent to passing log_level=logging.DEBUG
 hoist.start()
 ```
 
-### Tracing
+#### Tracing
 
 `debug` comes with two parameters, `trace` and `enable_uvicorn`.
 
@@ -193,7 +193,7 @@ The log message now looks like:
 (start) startup: starting server on...
 ```
 
-### Uvicorn
+#### Uvicorn
 
 There are some cases where an internal error might only show up on the `uvicorn` logger.
 

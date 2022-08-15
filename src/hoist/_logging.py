@@ -67,7 +67,7 @@ def log(
 
     logger.log(
         level,
-        f"{prefix}[{_COLORS[level]}]{k}:[/] {value}",
+        f"{prefix}[{_COLORS[level]}]{k}[/]: {value}",
         extra={
             "markup": True,
             **(

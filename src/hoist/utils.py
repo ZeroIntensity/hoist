@@ -5,13 +5,12 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Awaitable, Callable, Coroutine, Optional, Union
 
+import uvloop
 from rich.console import Console
 
 from ._typing import UrlLike
 from .client import Connection
 from .server import Server
-
-print_exc = Console().print_exception
 
 __all__ = (
     "main",
@@ -21,6 +20,9 @@ __all__ = (
     "debug",
     "serve",
 )
+
+print_exc = Console().print_exception
+uvloop.install()
 
 
 def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
@@ -36,7 +38,7 @@ def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
             if isinstance(e, KeyboardInterrupt):
                 return
 
-            print_exc()
+            print_exc(show_locals=True)
 
 
 @asynccontextmanager
@@ -91,7 +93,7 @@ def connect_to(
                 if isinstance(e, KeyboardInterrupt):
                     return
 
-                print_exc()
+                print_exc(show_locals=True)
             finally:
                 if not conn.closed:
                     await conn.close()

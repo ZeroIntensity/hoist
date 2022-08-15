@@ -1,5 +1,7 @@
+import logging
 from typing import NamedTuple, Type, TypeVar, get_type_hints
 
+from ._logging import log
 from ._typing import Operations, Operator, Payload, Schema
 from .exceptions import SchemaValidationError
 
@@ -23,12 +25,22 @@ def verify_schema(schema: Schema, data: Payload) -> None:
         value = data.get(key)
         vtype = type(value) if value is not None else None
 
-        if type(typ) is tuple:
+        if isinstance(typ, tuple):
             if vtype not in typ:
+                log(
+                    "schema validation",
+                    f"expected {', '.join([i.__name__ if i else 'None' for i in typ])}, got {vtype}",  # noqa
+                    level=logging.DEBUG,
+                )
                 raise SchemaValidationError(current=vtype, needed=typ)
             continue
 
         if vtype is not typ:
+            log(
+                "schema validation",
+                f"expected {typ.__name__}, got {vtype}",
+                level=logging.DEBUG,
+            )
             raise SchemaValidationError(current=vtype, needed=typ)
 
 
@@ -39,3 +51,15 @@ async def call_operation(op: Operator[T], payload: Payload) -> None:
 
     verify_schema(get_type_hints(cl), payload)
     await op(cl(**payload))
+
+
+def invalid_payload(exc: SchemaValidationError) -> Payload:
+    """Raise an invalid payload error."""
+    needed = exc.needed
+
+    return {
+        "current": exc.current,
+        "needed": exc.needed.__name__  # type: ignore
+        if not isinstance(needed, tuple)
+        else [i.__name__ if i else str(i) for i in needed],
+    }

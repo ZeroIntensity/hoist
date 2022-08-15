@@ -1,6 +1,6 @@
 from versions import parse_version
 
-from .version import __version__
+from .__about__ import __version__
 
 _VER = parse_version(__version__)
 IS_DEV: bool = _VER.is_dev_release()

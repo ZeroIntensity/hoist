@@ -1,5 +1,8 @@
 site_name: Hoist
-site_url: https://example.com/
+site_url: https://hoist.zintensity.dev
+repo_url: https://github.com/ZeroIntensity/hoist
+repo_name: ZeroIntensity/hoist
+
 nav:
     - Home: index.md
     - Getting Started: getting_started.md
@@ -35,6 +38,9 @@ theme:
               name: Switch to system preference
     features:
         - content.tabs.link
+
+    icon:
+        repo: fontawesome/brands/github
 markdown_extensions:
     - pymdownx.highlight:
           anchor_linenums: true

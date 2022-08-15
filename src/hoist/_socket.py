@@ -7,9 +7,9 @@ from starlette.websockets import WebSocket
 
 from ._errors import *
 from ._logging import hlog, log
-from ._operations import verify_schema
+from ._operations import invalid_payload, verify_schema
 from ._typing import Payload, Schema
-from .exceptions import ClientError, CloseSocket
+from .exceptions import ClientError, CloseSocket, SchemaValidationError
 
 __all__ = (
     "make_client_msg",
@@ -65,6 +65,7 @@ class Socket:
 
     async def _send(
         self,
+        id: Optional[int],
         *,
         success: bool = True,
         payload: Optional[Payload] = None,
@@ -81,6 +82,7 @@ class Socket:
             "code": code,
             "message": message,
             "desc": desc,
+            "id": id,
         }
         hlog("send", content, level=logging.DEBUG)
         await self.ws.send_json(content)
@@ -89,6 +91,7 @@ class Socket:
         self,
         code: int,
         *,
+        id: Optional[int] = None,
         description: Optional[str] = None,
         payload: Optional[Payload] = None,
     ) -> NoReturn:
@@ -98,22 +101,26 @@ class Socket:
         message = err[1]
 
         await self._send(
+            id,
             code=code,
             desc=description,
             error=error,
             message=message,
             payload=payload,
+            success=False,
         )
         raise ClientError(code=code, error=error, message=message)
 
     async def success(
         self,
+        id: Optional[int],
         payload: Optional[Payload] = None,
         *,
         message: Optional[str] = None,
     ) -> None:
         """Send a success to the client."""
         await self._send(
+            id,
             code=0,
             message=message,
             payload=payload,
@@ -133,8 +140,8 @@ class Socket:
 
         try:
             verify_schema(schema, load)
-        except Exception:
-            await self.error(INVALID_CONTENT)
+        except SchemaValidationError as e:
+            await self.error(INVALID_CONTENT, payload=invalid_payload(e))
 
         return [load[i] for i in schema]
 

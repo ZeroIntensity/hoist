@@ -16,7 +16,7 @@ with open("./dist/output.html", "w") as dist:
 with open("./dist/output.html") as dist:
     with open("../src/hoist/_html.py", "w") as f:
         f.write(
-            f"""from .version import __version__
+            f"""from .__about__ import __version__
 
 from versions import parse_version
 

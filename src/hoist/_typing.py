@@ -9,8 +9,10 @@ if TYPE_CHECKING:
     from versions import Version
     from yarl import URL
 
+    from ._messages import BaseMessagable
     from .message import Message
     from .server import Server
+
 
 _T = TypeVar("_T")
 
@@ -43,20 +45,7 @@ MessageListeners = Dict[
 VersionLike = Union[str, "Version"]
 
 
-class Messagable(Protocol):
-    """Protocol representing a messagable target."""
-
-    async def message(
-        self,
-        msg: str,
-        data: Optional[Payload] = None,
-        replying: Optional["Message"] = None,
-    ) -> "Message":
-        """Send a message."""
-        ...
-
-
 TransportMessageListener = Callable[
-    [Messagable, str, Payload, Optional["Message"]],
+    ["BaseMessagable", str, Payload, Optional[dict], int],
     Awaitable[None],
 ]

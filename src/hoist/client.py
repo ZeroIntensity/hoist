@@ -7,21 +7,19 @@ from versions import Version, parse_version
 from yarl import URL
 
 from ._client_ws import ServerSocket
-from ._errors import *
 from ._logging import hlog, log
-from ._messages import MessageListener
+from ._messages import BaseMessagable, MessageListener
 from ._typing import MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
-    AlreadyConnectedError, ConnectionFailedError, InvalidActionError,
-    InvalidVersionError, NotConnectedError, ServerConnectError,
-    ServerResponseError
+    AlreadyConnectedError, ConnectionFailedError, InvalidVersionError,
+    NotConnectedError, ServerConnectError
 )
 from .message import Message
 
 __all__ = ("Connection",)
 
 
-class Connection(MessageListener):
+class Connection(BaseMessagable, MessageListener):
     """Class handling a connection to a server."""
 
     def __init__(
@@ -42,6 +40,7 @@ class Connection(MessageListener):
         self._ws: Optional[ServerSocket] = None
         self._minimum_version = minimum_version
         self._closed: bool = False
+        self._message_id: int = 0
         super().__init__(extra_listeners)
 
     @property
@@ -155,28 +154,27 @@ class Connection(MessageListener):
         )
         await self._ws.login(self._call_listeners)
 
-    async def _send(
+    async def _execute_action(
         self,
         action: str,
         payload: Optional[Payload] = None,
     ):
+        """Run an action."""
         if not self._ws:
             raise NotConnectedError(
                 "not connected to websocket (did you forget to call connect?)"
             )
 
-        try:
-            res = await self._ws.send(
-                {
-                    "action": action,
-                    "data": payload or {},
-                },
-                reply=True,
-            )
-        except ServerResponseError as e:
-            if e.code == INVALID_ACTION:
-                raise InvalidActionError(f'"{e}" is not a valid action')
-            raise e
+        self._message_id += 1
+
+        res = await self._ws.send(
+            {
+                "action": action,
+                "data": payload or {},
+            },
+            self._message_id,
+            reply=True,
+        )
 
         return res
 
@@ -185,6 +183,7 @@ class Connection(MessageListener):
         msg: str,
         data: Optional[Payload] = None,
         replying: Optional[Message] = None,
+        listeners: Optional[MessageListeners] = None,
     ) -> Message:
         """Send a message to the server."""
         if not self._ws:
@@ -193,7 +192,8 @@ class Connection(MessageListener):
             )
 
         d = data or {}
-        res = await self._send(
+
+        res = await self._execute_action(
             "message",
             {
                 "message": msg,
@@ -204,13 +204,7 @@ class Connection(MessageListener):
 
         assert res.data
 
-        return Message(
-            self,
-            msg,
-            res.data["id"],
-            data=d,
-            replying=replying,
-        )
+        return await self.lookup(res.data["id"])
 
     def __del__(self) -> None:
         if not self.closed:

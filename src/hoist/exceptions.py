@@ -11,12 +11,12 @@ __all__ = (
     "NotConnectedError",
     "InvalidOperationError",
     "AlreadyConnectedError",
-    "InvalidActionError",
     "ServerConnectError",
     "BadContentError",
     "ConnectionFailedError",
     "ServerNotStartedError",
     "AlreadyInUseError",
+    "InternalServerError",
 )
 
 
@@ -97,6 +97,19 @@ class SchemaValidationError(Exception):
         """Current type."""
         return self._current
 
+    def format_current(self) -> str:
+        """Format the current type."""
+        c = self.current
+        return c.__name__ if c else str(c)
+
+    def format_needed(self) -> str:
+        """Format the needed type."""
+        needed = self.needed
+        if not isinstance(needed, tuple):
+            return needed.__name__
+
+        return ",".join([i.__name__ if i else str(i) for i in needed])
+
 
 class CloseSocket(Exception):
     """Close the socket."""
@@ -112,10 +125,6 @@ class InvalidOperationError(Exception):
 
 class AlreadyConnectedError(Exception):
     """Attempted to connect to the WebSocket twice."""
-
-
-class InvalidActionError(Exception):
-    """Invalid action was sent to the server."""
 
 
 class ServerConnectError(Exception):
@@ -136,3 +145,7 @@ class ServerNotStartedError(Exception):
 
 class AlreadyInUseError(Exception):
     """Port is already in use."""
+
+
+class InternalServerError(Exception):
+    """Exception occured on the server."""

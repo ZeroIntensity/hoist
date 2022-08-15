@@ -4,17 +4,18 @@ from typing import TYPE_CHECKING, List, NamedTuple, Optional, overload
 from aiohttp import ClientWebSocketResponse
 from typing_extensions import Literal
 
-from ._errors import INVALID_CONTENT
+from .__about__ import __version__
+from ._errors import INVALID_CONTENT, SERVER_ERROR
 from ._logging import hlog, log
 from ._messages import (
-    LISTENER_CLOSE, LISTENER_OPEN, NEW_MESSAGE, SINGLE_NEW_MESSAGE,
-    create_message
+    LISTENER_CLOSE, LISTENER_OPEN, NEW_MESSAGE, SINGLE_NEW_MESSAGE
 )
 from ._typing import Payload, TransportMessageListener
+from ._warnings import warn
 from .exceptions import (
-    BadContentError, InvalidVersionError, ServerLoginError, ServerResponseError
+    BadContentError, InternalServerError, InvalidVersionError,
+    ServerLoginError, ServerResponseError
 )
-from .version import __version__
 
 if TYPE_CHECKING:
     from .client import Connection
@@ -29,6 +30,7 @@ class _Response(NamedTuple):
     message: Optional[str]
     desc: Optional[str]
     code: int
+    id: Optional[int]
 
 
 class ServerSocket:
@@ -57,45 +59,55 @@ class ServerSocket:
         )
         return _Response(**json)
 
-    async def _recv(self) -> _Response:
+    async def _throw_error(self, res: _Response) -> None:
+        error = res.error
+        data = res.data
+        message = res.message
+        code = res.code
+        assert error
+        assert message
+
+        if code == INVALID_CONTENT:
+            assert data
+            needed_raw = data["needed"]
+            needed = (
+                ", ".join(needed_raw)
+                if isinstance(needed_raw, list)
+                else needed_raw  # fmt: off
+            )
+
+            raise BadContentError(
+                f'sent type {data["current"]} when server expected {needed}',  # noqa
+            )
+
+        elif code == SERVER_ERROR:
+            assert data
+            raise InternalServerError(
+                f"exception occured on server: {data['exc']} - {data['message']}"  # noqa
+            )
+
+        raise ServerResponseError(
+            f"code {code} [{error}]: {message}",
+            code=res.code,
+            error=error,
+            message=message,
+            payload=data,
+        )
+
+    async def _recv(self, id: int) -> _Response:
         """High level function to properly accept data from the server."""
         res = await self._rc()
         messages: List[Payload] = []
 
-        code = res.code
-        error = res.error
-        message = res.message
         data = res.data
 
         if res.code != 0:
-            assert error
-            assert message
-
-            if res.code == INVALID_CONTENT:
-                assert data
-                needed_raw = data["needed"]
-                needed = (
-                    ", ".join(needed_raw)
-                    if isinstance(needed_raw, list)
-                    else needed_raw  # fmt: off
-                )
-
-                raise BadContentError(
-                    f'sent type {data["current"]} when server expected {needed}',  # noqa
-                )
-
-            raise ServerResponseError(
-                f"code {code} [{error}]: {message}",
-                code=res.code,
-                error=error,
-                message=message,
-                payload=data,
-            )
+            await self._throw_error(res)
 
         if res.message == SINGLE_NEW_MESSAGE:
             assert data
             messages.append(data)
-            res = await self._recv()
+            res = await self._recv(id)
 
         if res.message == LISTENER_OPEN:
             log(
@@ -112,6 +124,9 @@ class ServerSocket:
                     new_res_json,
                     level=logging.DEBUG,
                 )
+
+                if new_res.code != 0:
+                    await self._throw_error(new_res)
 
                 if new_res.message == LISTENER_CLOSE:
                     break
@@ -131,15 +146,19 @@ class ServerSocket:
         assert listener
 
         for i in messages:
+            print(i)
             client = self._client
-            reply = i["replying"]
 
             await listener(
                 client,
                 i["message"],
                 i["data"],
-                await create_message(client, reply) if reply else None,
+                i["replying"],
+                i["id"],
             )
+
+        if res.id != id:
+            res = await self._recv(id)
 
         return res
 
@@ -153,6 +172,7 @@ class ServerSocket:
                     "token": self._token,
                     "version": __version__,
                 },
+                0,
                 reply=True,
             )
         except ServerResponseError as e:
@@ -180,11 +200,7 @@ class ServerSocket:
         if not self._closed:
             await self.send({"end": True})
         else:
-            log(
-                "close",
-                "attempted to double close connection",
-                level=logging.WARNING,
-            )
+            warn("attempted to double close connection")
 
         self._closed = True
 
@@ -192,6 +208,7 @@ class ServerSocket:
     async def send(  # type: ignore
         self,
         payload: Payload,
+        id: Optional[int] = None,
         *,
         reply: Literal[False] = False,
     ) -> Literal[None]:
@@ -202,6 +219,7 @@ class ServerSocket:
     async def send(
         self,
         payload: Payload,
+        id: Optional[int] = None,
         *,
         reply: Literal[True] = True,
     ) -> _Response:
@@ -211,14 +229,17 @@ class ServerSocket:
     async def send(
         self,
         payload: Payload,
+        id: Optional[int] = None,
         *,
         reply: bool = False,
     ) -> Optional[_Response]:
         """Send a message to the server."""
-        await self._ws.send_json(payload)
-        hlog("send", payload, level=logging.DEBUG)
+        data = {"id": id, **payload}
+        await self._ws.send_json(data)
+        hlog("send", data, level=logging.DEBUG)
 
         if reply:
-            return await self._recv()
+            assert id is not None, "id must be passed to receive"
+            return await self._recv(id)
 
         return None

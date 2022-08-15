@@ -1,5 +1,14 @@
 # Changelog
 
+## `1.0.0-alpha.3`
+
+-   Handling for `SchemaValidationError` on the client
+-   Added extra logging mechanics
+-   Changed `version.py` to `__about__.py`
+-   Small internal patches
+-   Improved server error handling
+-   Patched concurrency with message sending.
+
 ## `1.0.0-alpha.2`
 
 -   Extra version handling on frontend page

@@ -34,7 +34,7 @@ def _decode_hint(hint: Type[Any]) -> str:
     if ("typing." in string) and ("_typing." not in string):
         return _patch_hint(string)
 
-    return _patch_hint(hint.__name__)
+    return _patch_hint(hint.__name__ if not isinstance(hint, str) else hint)
 
 
 def _get_source(func: Callable) -> str:
@@ -49,7 +49,10 @@ def _generate_function(
     *,
     nm: bool = True,
 ) -> str:
-    hints = get_type_hints(func, globalns=globals())
+    try:
+        hints = func.__annotations__
+    except AttributeError:
+        hints = get_type_hints(func, globalns=globals())
     name: str = func.__name__
     ret = hints.pop("return") if "return" in hints else None
     params = [f"{param}: {_decode_hint(typ)}" for param, typ in hints.items()]
@@ -70,7 +73,7 @@ def _generate_property(
 ) -> str:
     get = prop.fget
     name: str = get.__name__
-    ret = get_type_hints(get)["return"]
+    ret = get_type_hints(get, globalns=globals())["return"]
     return f"""#### `{name}`
 
 ```py

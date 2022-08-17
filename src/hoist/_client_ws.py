@@ -1,8 +1,7 @@
 import asyncio
 import logging
 from typing import (
-    TYPE_CHECKING, Dict, Iterator, NamedTuple, Optional, Tuple, TypeVar,
-    overload
+    TYPE_CHECKING, Dict, Iterator, NamedTuple, Optional, TypeVar, overload
 )
 
 from aiohttp import ClientWebSocketResponse
@@ -40,13 +39,18 @@ class _Response(NamedTuple):
 T = TypeVar("T")
 
 
-def _drain(queue: asyncio.Queue[T]) -> Iterator[T]:
+def _drain(queue: "asyncio.Queue[T]") -> Iterator[T]:
     """Drain the target queue."""
     while True:
         try:
             yield queue.get_nowait()
         except asyncio.QueueEmpty:
             break
+
+
+"""
+NOTE: can't generic asyncio.Queue directly due to compatibility with other versions
+"""  # noqa
 
 
 class ServerSocket:
@@ -64,15 +68,15 @@ class ServerSocket:
         self._closed: bool = False
         self._message_listener: Optional[TransportMessageListener] = None
         self._client = client
-        self._receiving: Dict[int, asyncio.Queue[_Response]] = {}
-        self._messages = asyncio.Queue[Payload]()
+        self._receiving: Dict[int, "asyncio.Queue[_Response]"] = {}
+        self._messages: "asyncio.Queue[Payload]" = asyncio.Queue()
 
     @property
-    def messages(self) -> asyncio.Queue[Payload]:
+    def messages(self) -> asyncio.Queue:
         """Queue containing unprocessed messages."""
         return self._messages
 
-    async def _rc(self) -> Tuple[_Response, Payload]:
+    async def _rc(self) -> _Response:
         """Receive and parse a server response."""
         json = await self._ws.receive_json()
         hlog(
@@ -80,7 +84,7 @@ class ServerSocket:
             json,
             level=logging.DEBUG,
         )
-        return _Response(**json), json
+        return _Response(**json)
 
     async def _throw_error(self, res: _Response) -> None:
         error = res.error
@@ -121,7 +125,7 @@ class ServerSocket:
         """High level function to properly accept data from the server."""
         self._receiving[id] = asyncio.Queue(1)
         messages = self._messages
-        res, json = await self._rc()
+        res = await self._rc()
 
         data = res.data
 

@@ -5,7 +5,6 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Awaitable, Callable, Coroutine, Optional, Union
 
-import uvloop
 from rich.console import Console
 
 from ._typing import UrlLike
@@ -22,7 +21,6 @@ __all__ = (
 )
 
 print_exc = Console().print_exception
-uvloop.install()
 
 
 def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:

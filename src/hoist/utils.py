@@ -114,11 +114,12 @@ def start(
     *,
     host: str = "0.0.0.0",
     port: int = 5000,
+    fancy: bool = False,
     **kwargs,
 ) -> Server:
     """Start a Hoist server."""
     srvr = server or Server(token, **kwargs)
-    srvr.start(host=host, port=port)
+    srvr.start(host=host, port=port, fancy=fancy)
     return srvr
 
 

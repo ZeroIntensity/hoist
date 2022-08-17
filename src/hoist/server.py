@@ -3,10 +3,19 @@ import socket
 from contextlib import suppress
 from secrets import choice, compare_digest
 from string import ascii_letters
+from threading import Thread
+from traceback import format_exception
 from typing import TYPE_CHECKING, Any, List, Optional, Sequence
 
 import uvicorn
+from rich import box
+from rich.align import Align
 from rich.console import Console
+from rich.layout import Layout
+from rich.live import Live
+from rich.padding import Padding
+from rich.panel import Panel
+from rich.table import Table
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -24,7 +33,7 @@ from ._messages import (
 from ._operations import (
     BASE_OPERATIONS, call_operation, invalid_payload, verify_schema
 )
-from ._socket import ClientError, Socket, make_client, make_client_msg
+from ._socket import ClientError, Socket, Status, make_client, make_client_msg
 from ._typing import (
     LoginFunc, MessageListeners, Operations, Payload, Schema, VersionLike
 )
@@ -41,10 +50,10 @@ if TYPE_CHECKING:
 logging.getLogger("uvicorn.error").disabled = True
 logging.getLogger("uvicorn.access").disabled = True
 
-print_exc = Console().print_exception
-
-
 __all__ = ("Server",)
+
+_CONSOLE = Console()
+print_exc = _CONSOLE.print_exception
 
 
 async def _base_login(server: "Server", sent_token: str) -> bool:
@@ -130,6 +139,7 @@ class Server(MessageListener):
         unsupported_operations: Optional[Sequence[str]] = None,
         supported_operations: Optional[Sequence[str]] = None,
         extra_listeners: Optional[MessageListeners] = None,
+        fancy: Optional[bool] = None,
     ) -> None:
         self._token: str = token or "".join(
             [choice(default_token_choices) for _ in range(default_token_len)],
@@ -147,7 +157,15 @@ class Server(MessageListener):
         self._clients: List[Socket] = []
         self._server: Optional[UvicornServer] = None
         self._start_called: bool = False
+        self._all_connections: List[Socket] = []
+        self._is_fancy: Optional[bool] = fancy
+        self._exceptions: List[Exception] = []
         super().__init__(extra_listeners)
+
+    @property
+    def fancy(self) -> bool:
+        """Whether the server is running with fancy output."""
+        return self._is_fancy or False
 
     @property
     def supported_operations(self) -> Sequence[str]:
@@ -346,10 +364,13 @@ class Server(MessageListener):
     async def _ws(self, ws: Socket) -> None:
         """WebSocket entry point for Starlette."""  # noqa
         self._clients.append(ws)
+        self._all_connections.append(ws)
+        ws.status = Status.CONNECTED
 
         try:
             await self._ws_wrapper(ws)
         except Exception as e:
+            ws.status = Status.KILLED
             log(
                 "exc",
                 f"{e.__class__.__name__}: {str(e) or '<no message>'}",
@@ -370,6 +391,7 @@ class Server(MessageListener):
                 )
                 await ws.close(1003)
             elif isinstance(e, CloseSocket):
+                ws.status = Status.CLOSED
                 await ws.close(1000)
             else:
                 log(
@@ -388,7 +410,10 @@ class Server(MessageListener):
         ws: Socket,
         e: Exception,
     ):
-        print_exc(show_locals=True)
+        self._exceptions.append(e)
+
+        if not self.fancy:
+            print_exc(show_locals=True)
 
         with suppress(ClientError):
             await ws.error(
@@ -450,17 +475,67 @@ class Server(MessageListener):
                 f"{url} is an existing server (did you forget to close it?)",  # noqa
             )
 
+    def _fancy(self):
+        with Live(screen=True) as live:
+            while self.running:
+                table = Table(
+                    box=box.ROUNDED,
+                    title=f"[bold cyan]Hoist {__version__}",
+                )
+                table.add_column("Address")
+                table.add_column("Status")
+                excs = self._exceptions
+                rendered_table = Padding(Align.center(table), 1)
+
+                layout = Layout(
+                    rendered_table if not excs else None,
+                )
+
+                if excs:
+                    lay = Layout()
+                    lay.split_row(
+                        *[
+                            Panel(
+                                "".join(
+                                    format_exception(
+                                        type(e),
+                                        e,
+                                        e.__traceback__,
+                                    )
+                                ),
+                                title=f"[bold red]{e.__class__.__name__}",
+                            )
+                            for e in excs
+                        ]
+                    )
+
+                    layout.split_column(
+                        Layout(rendered_table, ratio=2),
+                        lay,
+                    )
+
+                for i in self._all_connections:
+                    table.add_row(
+                        f"[bold cyan]{i.make_address()}",
+                        i.rich_status,
+                    )
+
+                live.update(layout)
+
     def start(  # type: ignore
         self,
         *,
         host: str = "0.0.0.0",
         port: int = 5000,
+        fancy: bool = False,
     ) -> None:  # type: ignore
         """Start the server."""
         if self.running:
             raise AlreadyInUseError(
                 "server is already running (did you forget to call close?)",
             )
+
+        self._is_fancy = fancy
 
         async def _app(
             scope: Scope,
@@ -477,10 +552,25 @@ class Server(MessageListener):
             )
         )
 
+        config = uvicorn.Config(_app, host=host, port=port, lifespan="on")
+        self._server = UvicornServer(config)
+
+        if fancy:
+            logging.getLogger("hoist").setLevel(logging.ERROR)
+
+        args = (
+            self._hide_token,
+            self.token,
+        )
+
         try:
-            config = uvicorn.Config(_app, host=host, port=port, lifespan="on")
-            self._server = UvicornServer(config)
-            self._server.run_in_thread(self._hide_token, self.token)
+            if not fancy:
+                self._server.run_in_thread(*args)
+            else:
+                with _CONSOLE.status("Starting...", spinner="bouncingBar"):
+                    self._server.run_in_thread(*args)
+
+                Thread(target=self._fancy).start()
         except RuntimeError as e:
             raise RuntimeError(
                 "server cannot start from a running event loop",
@@ -528,11 +618,6 @@ class Server(MessageListener):
             )
         self._server.close_thread()
         self._server = None
-
-        log(
-            "shutdown",
-            "closed server",
-        )
         self._start_called = False
 
     @property

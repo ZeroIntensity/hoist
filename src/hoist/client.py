@@ -41,6 +41,7 @@ class Connection(BaseMessagable, MessageListener):
         self._minimum_version = minimum_version
         self._closed: bool = False
         self._message_id: int = 0
+        self._waiting_listeners: Optional[MessageListeners] = None
         super().__init__(extra_listeners)
 
     @property
@@ -77,6 +78,7 @@ class Connection(BaseMessagable, MessageListener):
         self._closed = True
 
     async def _ack(self, url: URL) -> None:
+        """Acknowledge that the server supports hoist."""
         async with self._session.get(url.with_path("/hoist/ack")) as response:
             try:
                 json = await response.json()
@@ -158,6 +160,8 @@ class Connection(BaseMessagable, MessageListener):
         self,
         action: str,
         payload: Optional[Payload] = None,
+        *,
+        process_messages: bool = True,
     ):
         """Run an action."""
         if not self._ws:
@@ -176,6 +180,9 @@ class Connection(BaseMessagable, MessageListener):
             reply=True,
         )
 
+        if process_messages:
+            await self._ws.process_messages()
+
         return res
 
     async def message(
@@ -193,6 +200,7 @@ class Connection(BaseMessagable, MessageListener):
 
         d = data or {}
 
+        self._waiting_listeners = listeners
         res = await self._execute_action(
             "message",
             {
@@ -200,12 +208,27 @@ class Connection(BaseMessagable, MessageListener):
                 "data": d,
                 "replying": replying.to_dict() if replying else None,
             },
+            process_messages=False,
         )
 
         assert res.data
 
-        return await self.lookup(res.data["id"])
+        obj = await self.new_message(
+            self,
+            msg,
+            d,
+            replying,
+            listeners=listeners,
+            id=res.data["id"],
+        )
+
+        await self._ws.process_messages()
+        return obj
 
     def __del__(self) -> None:
         if not self.closed:
-            log("close", "connection was not closed", level=logging.DEBUG)
+            log(
+                "close",
+                "connection was not closed",
+                level=logging.DEBUG,
+            )

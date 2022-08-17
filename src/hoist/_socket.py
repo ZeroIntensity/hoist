@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Any, List, NoReturn, Optional
+from enum import Enum
+from typing import Any, Dict, List, NoReturn, Optional
 
 from starlette.datastructures import Address
 from starlette.websockets import WebSocket
@@ -15,6 +16,7 @@ __all__ = (
     "make_client_msg",
     "make_client",
     "Socket",
+    "Status",
 )
 
 
@@ -29,6 +31,23 @@ def make_client(addr: Optional[Address]) -> str:
     return f"[bold cyan]{addr.host}:{addr.port}[/]" if addr else "client"
 
 
+class Status(Enum):
+    """Current connection status."""
+
+    AUTHENTICATING = 1
+    CONNECTED = 2
+    CLOSED = 3
+    KILLED = 4
+
+
+_RICH_STATUSES: Dict[Status, str] = {
+    Status.AUTHENTICATING: "[bold yellow]Authenticating",
+    Status.CONNECTED: "[bold green]Connected",
+    Status.CLOSED: "[bold red]Closed",
+    Status.KILLED: "[bold dim red]Killed",
+}
+
+
 class Socket:
     """Class for handling a WebSocket."""
 
@@ -38,6 +57,26 @@ class Socket:
     ):
         self._ws = ws
         self._logged: bool = False
+        self._status: Status = Status.AUTHENTICATING
+
+    def make_address(self) -> str:
+        """Get the current address as rich text."""
+        addr = self.address
+        return "[bold yellow]?[/]" if not addr else f"{addr.host}:{addr.port}"
+
+    @property
+    def status(self) -> Status:
+        """Current connection status."""
+        return self._status
+
+    @status.setter
+    def status(self, value: Status) -> None:
+        self._status = value
+
+    @property
+    def rich_status(self) -> str:
+        """Rich connection status."""
+        return _RICH_STATUSES[self.status]
 
     async def connect(self) -> None:
         """Establish the WebSocket connection."""

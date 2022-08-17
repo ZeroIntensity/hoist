@@ -1,5 +1,5 @@
 [version]
-path = "src/hoist/version.py"
+path = "src/hoist/__about__.py"
 
 [build.targets.sdist]
 exclude = [

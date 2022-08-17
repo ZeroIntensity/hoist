@@ -33,11 +33,6 @@ async def _():
             await c.message("hello")
 
 
-"""
-
-"""
-
-
 @test("client error handling")
 async def _():
     with raises(hoist.ServerConnectError):

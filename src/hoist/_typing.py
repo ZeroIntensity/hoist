@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from versions import Version
     from yarl import URL
 
-    from ._messages import BaseMessagable
+    from ._messages import BaseMessagable, ListenerData
     from .message import Message
     from .server import Server
 
@@ -36,11 +36,14 @@ Operations = Dict[str, Operator]
 UrlLike = Union[str, "URL"]
 LoginFunc = Callable[["Server", str], Awaitable[bool]]
 ResponseErrors = Dict[int, Tuple[str, str]]
-Listener = Callable[["Message", _T], Awaitable[None]]
-ListenerData = Tuple[Listener[_A], Union[_A, Schema]]
+Listener = Union[
+    Callable[["Message", _T], Awaitable[None]],
+    Callable[["Message"], Awaitable[None]],
+    Callable[[], Awaitable[None]],
+]
 MessageListeners = Dict[
     Optional[Union[Tuple[str, ...], str]],
-    List[ListenerData[_A]],
+    List["ListenerData"],
 ]
 VersionLike = Union[str, "Version"]
 

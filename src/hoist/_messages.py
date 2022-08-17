@@ -1,28 +1,29 @@
+import inspect
 import logging
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import (
-    TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple, TypeVar,
-    Union, get_type_hints
+    TYPE_CHECKING, Any, AsyncIterator, Dict, List, NamedTuple, Optional, Tuple,
+    TypeVar, Union, get_type_hints
 )
 
 from typing_extensions import Final
 
-from ._logging import hlog
+from ._logging import hlog, log
 from ._operations import verify_schema
-from ._typing import (
-    DataclassLike, Listener, ListenerData, MessageListeners, Payload, Schema
-)
+from ._typing import DataclassLike, Listener, MessageListeners, Payload, Schema
 from ._warnings import warn
 from .exceptions import SchemaValidationError
 
 if TYPE_CHECKING:
     from .message import Message, PendingMessage
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 __all__ = (
     "MessageListener",
     "BaseMessagable",
+    "ListenerParam",
 )
 
 T = TypeVar("T", bound=DataclassLike)
@@ -31,6 +32,20 @@ NEW_MESSAGE: Final[str] = "newmsg"
 LISTENER_OPEN: Final[str] = "open"
 LISTENER_CLOSE: Final[str] = "done"
 SINGLE_NEW_MESSAGE: Final[str] = "s_newmsg"
+
+
+class ListenerParam(Enum):
+    """Type of parameter(s) that the listener should take."""
+
+    NONE = 1
+    MESSAGE_ONLY = 2
+    MESSAGE_AND_PAYLOAD = 3
+
+
+class ListenerData(NamedTuple):
+    listener: Listener
+    param: Optional[Union[DataclassLike, Schema]]
+    param_type: ListenerParam
 
 
 async def _process_listeners(
@@ -49,10 +64,20 @@ async def _process_listeners(
     schema_failed: List[str] = []
 
     for i in listeners or ():
-        func = i[0]
-        param = i[1]
-        is_schema: bool = isinstance(param, dict)
+        # TODO: clean up type safety here
+        func = i.listener
+        param = i.param
+        typ = i.param_type
 
+        if typ is ListenerParam.NONE:
+            await func()  # type: ignore
+            continue
+
+        if typ is ListenerParam.MESSAGE_ONLY:
+            await func(message)  # type: ignore
+            continue
+
+        is_schema: bool = isinstance(param, dict)
         schema: Any = param if is_schema else get_type_hints(param)
 
         try:
@@ -64,7 +89,7 @@ async def _process_listeners(
         payload = message.data
         called = True
         await func(
-            message,
+            message,  # type: ignore
             payload if is_schema else param(**payload),  # type: ignore
         )
 
@@ -146,14 +171,24 @@ class MessageListener:
         def decorator(func: Listener):
             listeners = self.message_listeners
 
-            param = parameter
+            param: Optional[Union[DataclassLike, Schema]] = parameter
 
             if not param:
                 hints = get_type_hints(func)
                 if hints:
-                    param = hints[tuple(hints.keys())[1]]
+                    with suppress(IndexError):
+                        param = hints[tuple(hints.keys())[1]]
 
-            value = (func, (param or {}))
+            params = len(inspect.signature(func).parameters)
+            value = ListenerData(
+                func,
+                param,
+                ListenerParam.NONE
+                if not params
+                else ListenerParam.MESSAGE_ONLY
+                if params == 1
+                else ListenerParam.MESSAGE_AND_PAYLOAD,
+            )
 
             if message in listeners:
                 listeners[message].append(value)
@@ -192,8 +227,18 @@ class MessageListener:
         obj = self._all_messages.get(mid)
 
         if obj:
+            hlog(
+                "create or lookup",
+                f"using existing {obj}",
+                level=logging.DEBUG,
+            )
             return obj
 
+        log(
+            "create or lookup",
+            f"id {mid} does not exist, creating it",
+            level=logging.DEBUG,
+        )
         obj = await self.new_message(
             conn,
             content,
@@ -255,7 +300,12 @@ class MessageListener:
 
     async def lookup(self, id: int) -> "Message":
         """Lookup a message by its ID."""
-        obj = self._all_messages[id]
+        try:
+            obj = self._all_messages[id]
+        except KeyError as e:
+            raise ValueError(
+                f"(internal error) message {id} does not exist",
+            ) from e
         hlog(
             "message lookup",
             f"looked up {obj}",

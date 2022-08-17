@@ -45,7 +45,7 @@ def _showwarning(
         )
     else:
         try:
-            file.write(text)
+            file.write(f"{category.__name__}: {text}")
         except OSError:
             # the file (probably stderr) is invalid - this warning gets lost.
             pass
@@ -62,7 +62,10 @@ def _warning_no_src_line(
     file: Optional[TextIO] = None,
     line: Optional[str] = None,
 ) -> str:
-    return str(message)
+    if (file is None and sys.stderr is not None) or file is sys.stderr:
+        return str(message)
+    else:
+        return f"{filename}:{lineno} {category.__name__}: {message}"
 
 
 warnings.formatwarning = _warning_no_src_line  # type: ignore

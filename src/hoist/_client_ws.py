@@ -1,5 +1,9 @@
+import asyncio
 import logging
-from typing import TYPE_CHECKING, List, NamedTuple, Optional, overload
+from typing import (
+    TYPE_CHECKING, Dict, Iterator, NamedTuple, Optional, Tuple, TypeVar,
+    overload
+)
 
 from aiohttp import ClientWebSocketResponse
 from typing_extensions import Literal
@@ -33,6 +37,18 @@ class _Response(NamedTuple):
     id: Optional[int]
 
 
+T = TypeVar("T")
+
+
+def _drain(queue: asyncio.Queue[T]) -> Iterator[T]:
+    """Drain the target queue."""
+    while True:
+        try:
+            yield queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+
+
 class ServerSocket:
     """Class for handling a WebSocket connection to a server."""
 
@@ -48,8 +64,15 @@ class ServerSocket:
         self._closed: bool = False
         self._message_listener: Optional[TransportMessageListener] = None
         self._client = client
+        self._receiving: Dict[int, asyncio.Queue[_Response]] = {}
+        self._messages = asyncio.Queue[Payload]()
 
-    async def _rc(self) -> _Response:
+    @property
+    def messages(self) -> asyncio.Queue[Payload]:
+        """Queue containing unprocessed messages."""
+        return self._messages
+
+    async def _rc(self) -> Tuple[_Response, Payload]:
         """Receive and parse a server response."""
         json = await self._ws.receive_json()
         hlog(
@@ -57,7 +80,7 @@ class ServerSocket:
             json,
             level=logging.DEBUG,
         )
-        return _Response(**json)
+        return _Response(**json), json
 
     async def _throw_error(self, res: _Response) -> None:
         error = res.error
@@ -96,8 +119,9 @@ class ServerSocket:
 
     async def _recv(self, id: int) -> _Response:
         """High level function to properly accept data from the server."""
-        res = await self._rc()
-        messages: List[Payload] = []
+        self._receiving[id] = asyncio.Queue(1)
+        messages = self._messages
+        res, json = await self._rc()
 
         data = res.data
 
@@ -106,7 +130,7 @@ class ServerSocket:
 
         if res.message == SINGLE_NEW_MESSAGE:
             assert data
-            messages.append(data)
+            messages.put_nowait(data)
             res = await self._recv(id)
 
         if res.message == LISTENER_OPEN:
@@ -119,6 +143,7 @@ class ServerSocket:
             while True:
                 new_res_json = await self._ws.receive_json()
                 new_res = _Response(**new_res_json)
+
                 hlog(
                     "listener receive",
                     new_res_json,
@@ -134,7 +159,7 @@ class ServerSocket:
                 elif new_res.message in {NEW_MESSAGE, SINGLE_NEW_MESSAGE}:
                     data = new_res.data
                     assert data
-                    messages.append(data)
+                    messages.put_nowait(data)
 
             log(
                 "listener",
@@ -142,11 +167,30 @@ class ServerSocket:
                 level=logging.DEBUG,
             )
 
+        gqueue = self._receiving.get(id)
+
+        assert res.id is not None, "response has no id"
+        pqueue = self._receiving.get(res.id)
+
+        if not gqueue:
+            raise RuntimeError(
+                f"(internal error) no receiver found for {res}",
+            )
+
+        if not pqueue:
+            raise RuntimeError(
+                f"{res} not in receivers",
+            )
+
+        pqueue.put_nowait(res)
+        return await gqueue.get()
+
+    async def process_messages(self):
+        """Run message listeners with received messages."""
         listener = self._message_listener
         assert listener
 
-        for i in messages:
-            print(i)
+        for i in _drain(self._messages):
             client = self._client
 
             await listener(
@@ -156,11 +200,6 @@ class ServerSocket:
                 i["replying"],
                 i["id"],
             )
-
-        if res.id != id:
-            res = await self._recv(id)
-
-        return res
 
     async def login(self, listener: TransportMessageListener) -> None:
         """Send login message to the server."""

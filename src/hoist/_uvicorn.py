@@ -20,7 +20,11 @@ class UvicornServer(uvicorn.Server):
         super().__init__(*args, **kwargs)
         self._thread: Optional[Thread] = None
 
-    def run_in_thread(self, hide_token: bool, token: str) -> None:
+    def run_in_thread(
+        self,
+        hide_token: bool,
+        token: str,
+    ) -> None:
         """Run the server in a thread."""
         hlog(
             "startup",

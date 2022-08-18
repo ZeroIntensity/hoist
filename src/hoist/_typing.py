@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from yarl import URL
 
     from ._messages import BaseMessagable, ListenerData
+    from ._operations import OperatorParam
     from .message import Message
     from .server import Server
 
@@ -18,7 +19,7 @@ _T = TypeVar("_T")
 
 
 class DataclassLike(Protocol):
-    """Protocol representing a dataclass-like object."""
+    """Dataclass-like object protocl."""
 
     __annotations__: Dict[str, Any]
 
@@ -26,13 +27,27 @@ class DataclassLike(Protocol):
         ...
 
 
-_A = TypeVar("_A", bound=Type[DataclassLike])
+class HasDict(Protocol):
+    """Object with `__dict__` attribute."""
 
+    @property
+    def __dict__(self):
+        ...
+
+
+_PyBuiltins = Union[str, float, int, bool, dict, None]
+JSONLike = Union[_PyBuiltins, HasDict]
 Payload = Dict[str, Any]
-Operator = Callable[[_T], Awaitable[Any]]
+Operator = Union[
+    Callable[[_T], Awaitable[JSONLike]],
+    Callable[[], Awaitable[JSONLike]],
+    Callable[["Server", _T], Awaitable[JSONLike]],
+    Callable[["Server"], Awaitable[JSONLike]],
+]
 SchemaNeededType = Union[Type[Any], Tuple[Optional[Type[Any]], ...]]
 Schema = Dict[str, SchemaNeededType]
-Operations = Dict[str, Operator]
+OperationData = Tuple[Operator[_T], "OperatorParam", bool]
+Operations = Dict[str, OperationData[_T]]
 UrlLike = Union[str, "URL"]
 LoginFunc = Callable[["Server", str], Awaitable[bool]]
 ResponseErrors = Dict[int, Tuple[str, str]]

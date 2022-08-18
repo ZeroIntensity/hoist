@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import weakref
 from typing import Optional
 
 import aiohttp
@@ -7,12 +8,13 @@ from versions import Version, parse_version
 from yarl import URL
 
 from ._client_ws import ServerSocket
-from ._logging import hlog, log
+from ._errors import UNKNOWN_OPERATION
+from ._logging import hlog
 from ._messages import BaseMessagable, MessageListener
-from ._typing import MessageListeners, Payload, UrlLike, VersionLike
+from ._typing import JSONLike, MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
     AlreadyConnectedError, ConnectionFailedError, InvalidVersionError,
-    NotConnectedError, ServerConnectError
+    NotConnectedError, ServerConnectError, ServerResponseError
 )
 from .message import Message
 
@@ -39,10 +41,16 @@ class Connection(BaseMessagable, MessageListener):
         self._session = session or aiohttp.ClientSession(loop=self._loop)
         self._ws: Optional[ServerSocket] = None
         self._minimum_version = minimum_version
-        self._closed: bool = False
         self._message_id: int = 0
-        self._waiting_listeners: Optional[MessageListeners] = None
+        self._finalizer = weakref.finalize(self, self.close_sync)
+        self._closed: bool = False
+        self._opened: bool = False
         super().__init__(extra_listeners)
+
+    @property
+    def opened(self) -> bool:
+        """Whether the connection was ever opened."""
+        return self._opened
 
     @property
     def closed(self) -> bool:
@@ -64,18 +72,32 @@ class Connection(BaseMessagable, MessageListener):
         """Whether the server is currently connected."""
         return self._connected
 
+    def close_sync(self) -> None:
+        """Close the client synchronously."""
+        loop = self._loop
+        coro = self.close()
+
+        try:
+            try:
+                loop.run_until_complete(coro)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(coro)
+        except Exception as e:
+            coro.throw(e)
+            raise e
+
     async def close(self) -> None:
         """Close the connection."""
         if self.closed:
-            raise NotConnectedError(
-                "connection is already closed (did you call close twice?)",
-            )
+            return
 
         if self._ws:
             await self._ws.close()
 
         await self._session.close()
         self._closed = True
+        self._connected = False
 
     async def _ack(self, url: URL) -> None:
         """Acknowledge that the server supports hoist."""
@@ -155,6 +177,7 @@ class Connection(BaseMessagable, MessageListener):
             level=logging.DEBUG,
         )
         await self._ws.login(self._call_listeners)
+        self._opened = True
 
     async def _execute_action(
         self,
@@ -200,7 +223,6 @@ class Connection(BaseMessagable, MessageListener):
 
         d = data or {}
 
-        self._waiting_listeners = listeners
         res = await self._execute_action(
             "message",
             {
@@ -225,10 +247,31 @@ class Connection(BaseMessagable, MessageListener):
         await self._ws.process_messages()
         return obj
 
-    def __del__(self) -> None:
-        if not self.closed:
-            log(
-                "close",
-                "connection was not closed",
-                level=logging.DEBUG,
+    async def operation(
+        self,
+        name: str,
+        payload: Optional[Payload] = None,
+    ) -> JSONLike:
+        """Execute an operation on the server."""
+        if not self._ws:
+            raise NotConnectedError(
+                "not connected to websocket (did you forget to call connect?)"
             )
+
+        try:
+            res = await self._execute_action(
+                "operation",
+                {
+                    "operation": name,
+                    "data": payload,
+                },
+            )
+        except ServerResponseError as e:
+            if e.code == UNKNOWN_OPERATION:
+                raise ValueError(
+                    f'"{name}" is not a valid operation',
+                ) from e
+            raise e
+
+        assert res.data
+        return res.data["result"]

@@ -1,7 +1,9 @@
 import inspect
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, Optional, Type, get_type_hints
+from typing import (
+    Any, Callable, Dict, ForwardRef, Optional, Type, get_type_hints
+)
 
 from rich import print
 from versions import Version  # noqa
@@ -12,20 +14,16 @@ from src.hoist._typing import *  # noqa
 
 NEWLINE: str = "\n"
 HIDDEN_DERIVES = {"Exception", "object"}
-Message = hoist.Message
-Server = hoist.Server
-Connection = hoist.Connection
+PATCHES = {
+    "src.": "",
+    "NoneType": "None",
+}
 
 
 def _patch_hint(hint_str: str) -> str:
-    return (
-        hint_str.replace("NoneType", "None")
-        .replace("src.", "")
-        .replace(
-            "typing.",
-            "",
-        )
-    )
+    for item, patch in PATCHES.items():
+        hint_str = hint_str.replace(item, patch)
+    return hint_str
 
 
 def _decode_hint(hint: Type[Any]) -> str:
@@ -44,15 +42,36 @@ def _get_source(func: Callable) -> str:
     return f"[Source](https://github.com/ZeroIntensity/hoist/blob/master/src/hoist/{path}#L{code.co_firstlineno})\n\n"  # noqa
 
 
+def _get_hints(func: Any) -> Dict[str, Any]:
+    try:
+        hints = func.__annotations__
+    except AttributeError:
+        hints = get_type_hints(func, globalns=globals())
+
+    for v in hints.values():
+        nbases = []
+        bases = getattr(v, "__args__", None)
+        if bases:
+            for generic in bases:
+                nbases.append(
+                    generic
+                    if not isinstance(
+                        generic,
+                        ForwardRef,
+                    )
+                    else generic.__forward_arg__
+                )
+            v.__args__ = nbases
+
+    return hints
+
+
 def _generate_function(
     func: Callable,
     *,
     nm: bool = True,
 ) -> str:
-    try:
-        hints = func.__annotations__
-    except AttributeError:
-        hints = get_type_hints(func, globalns=globals())
+    hints = _get_hints(func)
     name: str = func.__name__
     ret = hints.pop("return") if "return" in hints else None
     params = [f"{param}: {_decode_hint(typ)}" for param, typ in hints.items()]
@@ -73,7 +92,7 @@ def _generate_property(
 ) -> str:
     get = prop.fget
     name: str = get.__name__
-    ret = get_type_hints(get, globalns=globals())["return"]
+    ret = _get_hints(get)["return"]
     return f"""#### `{name}`
 
 ```py

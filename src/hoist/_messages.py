@@ -10,7 +10,7 @@ from typing import (
 from typing_extensions import Final
 
 from ._logging import hlog, log
-from ._operations import verify_schema
+from ._schema import verify_schema
 from ._typing import DataclassLike, Listener, MessageListeners, Payload, Schema
 from ._warnings import warn
 from .exceptions import SchemaValidationError

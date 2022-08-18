@@ -18,6 +18,7 @@ __all__ = (
     "connect_to",
     "debug",
     "serve",
+    "connect_no_ctx",
 )
 
 print_exc = Console().print_exception
@@ -52,6 +53,17 @@ async def connect(
         yield conn
     finally:
         await conn.close()
+
+
+async def connect_no_ctx(
+    token: str,
+    url: UrlLike = "http://localhost:5000",
+    **kwargs: Any,
+):
+    """Connect to a Hoist server without a context manager."""
+    conn = Connection(url, token, **kwargs)
+    await conn.connect()
+    return conn
 
 
 @contextmanager

@@ -8,7 +8,7 @@ from starlette.websockets import WebSocket
 
 from ._errors import *
 from ._logging import hlog, log
-from ._operations import invalid_payload, verify_schema
+from ._schema import invalid_payload, verify_schema
 from ._typing import Payload, Schema
 from .exceptions import ClientError, CloseSocket, SchemaValidationError
 

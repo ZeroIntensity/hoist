@@ -1,3 +1,4 @@
+import inspect
 import logging
 import socket
 from contextlib import suppress
@@ -5,7 +6,9 @@ from secrets import choice, compare_digest
 from string import ascii_letters
 from threading import Thread
 from traceback import format_exception
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence
+from typing import (
+    TYPE_CHECKING, Any, List, Optional, Sequence, Type, TypeVar, get_type_hints
+)
 
 import uvicorn
 from rich import box
@@ -30,12 +33,12 @@ from ._messages import (
     LISTENER_CLOSE, LISTENER_OPEN, NEW_MESSAGE, SINGLE_NEW_MESSAGE,
     BaseMessagable, MessageListener
 )
-from ._operations import (
-    BASE_OPERATIONS, call_operation, invalid_payload, verify_schema
-)
+from ._operations import BASE_OPERATIONS, OperatorParam
+from ._schema import invalid_payload, verify_schema
 from ._socket import ClientError, Socket, Status, make_client, make_client_msg
 from ._typing import (
-    LoginFunc, MessageListeners, Operations, Payload, Schema, VersionLike
+    JSONLike, LoginFunc, MessageListeners, OperationData, Operations, Operator,
+    Payload, Schema, VersionLike
 )
 from ._uvicorn import UvicornServer
 from .exceptions import (
@@ -52,6 +55,7 @@ logging.getLogger("uvicorn.access").disabled = True
 
 __all__ = ("Server",)
 
+T = TypeVar("T")
 _CONSOLE = Console()
 print_exc = _CONSOLE.print_exception
 
@@ -122,6 +126,9 @@ class _SocketMessageTransport(BaseMessagable):
         )
 
 
+_PY_BUILTINS = {str, float, int, bool, dict}
+
+
 class Server(MessageListener):
     """Class for handling a server."""
 
@@ -161,6 +168,60 @@ class Server(MessageListener):
         self._is_fancy: Optional[bool] = fancy
         self._exceptions: List[Exception] = []
         super().__init__(extra_listeners)
+
+    async def _call_operation(
+        self,
+        op: OperationData[T],
+        payload: Payload,
+    ) -> JSONLike:
+        """Call an operation."""
+        func = op[0]
+        typ = op[1]
+        custom_payload = op[2]
+
+        if typ is OperatorParam.NONE:
+            result = await func()  # type: ignore
+        elif typ is OperatorParam.SERVER_ONLY:
+            result = await func(self)  # type: ignore
+        elif typ in {
+            OperatorParam.PAYLOAD_ONLY,
+            OperatorParam.SERVER_AND_PAYLOAD,
+        }:
+            if custom_payload:
+                hints = get_type_hints(func)
+                cl: Type[T] = hints[tuple(hints.keys())[0]]
+
+                verify_schema(get_type_hints(cl), payload)
+                data = cl(**payload)
+            else:
+                data = payload  # type: ignore
+            args = (
+                (
+                    self,
+                    data,
+                )
+                if typ is OperatorParam.SERVER_AND_PAYLOAD
+                else (data,)
+            )
+            result = await func(*args)  # type: ignore
+        else:
+            hints = get_type_hints(func)
+            verify_schema(hints, payload)
+            result = await func(**payload)  # type: ignore
+
+        result_type = type(result)
+
+        if (result_type in _PY_BUILTINS) or (not result):
+            return result
+
+        dct: Optional[dict] = getattr(result, "__dict__", None)
+
+        if not dct:
+            raise TypeError(
+                f"operation handler {func.__name__} returned non-json type: {result_type}",  # noqa
+            )
+
+        return dct
 
     @property
     def fancy(self) -> bool:
@@ -260,11 +321,11 @@ class Server(MessageListener):
             await ws.error(UNSUPPORTED_OPERATION)
 
         try:
-            await call_operation(op, data)
+            result = await self._call_operation(op, data)
         except SchemaValidationError as e:
             await ws.error(INVALID_CONTENT, payload=invalid_payload(e))
 
-        await ws.success(id)
+        await ws.success(id, payload={"result": result})
 
     async def _process_message(
         self,
@@ -527,15 +588,16 @@ class Server(MessageListener):
         *,
         host: str = "0.0.0.0",
         port: int = 5000,
-        fancy: bool = False,
-    ) -> None:  # type: ignore
+        fancy: Optional[bool] = None,
+    ) -> None:
         """Start the server."""
         if self.running:
             raise AlreadyInUseError(
                 "server is already running (did you forget to call close?)",
             )
 
-        self._is_fancy = fancy
+        self._is_fancy = fancy if fancy is not None else self._is_fancy
+        fancy = self._is_fancy
 
         async def _app(
             scope: Scope,
@@ -628,3 +690,42 @@ class Server(MessageListener):
     def stop(self) -> None:
         """Alias to `Server.close`."""
         self.close()
+
+    def operation(self, name: str):
+        """Add a function for an operation."""
+
+        def decorator(func: Operator):
+            pl_type: bool = False
+            op_type = OperatorParam.NONE
+            params = inspect.signature(func).parameters
+
+            if params:
+                annotations = [i.annotation for i in params.values()]
+
+                if annotations:
+                    if annotations == [Server]:
+                        op_type = OperatorParam.SERVER_ONLY
+                    elif annotations[0] == Server:
+                        op_type = (
+                            OperatorParam.SERVER_AND_PAYLOAD
+                            if len(params) == 2
+                            else OperatorParam.PAYLOAD_ONLY
+                        )
+
+                    else:
+                        plen: int = len(params)
+                        if plen <= 3:
+                            op_type = OperatorParam.DYNAMIC
+
+                else:
+                    op_type = OperatorParam.SERVER_AND_PAYLOAD
+            else:
+                op_type = OperatorParam.NONE
+
+            self._operations[name] = (
+                func,
+                op_type,
+                pl_type,
+            )
+
+        return decorator

@@ -47,11 +47,6 @@ async def _():
         with hoist.serve():
             await hoist.Connection("http://localhost:5000").connect()
 
-    with raises(hoist.NotConnectedError):
-        c = hoist.Connection("")
-        await c.close()
-        await c.close()
-
     with hoist.serve("test"):
         c = hoist.Connection("http://localhost:5000")
         await c.connect("test")

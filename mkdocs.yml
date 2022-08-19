@@ -6,9 +6,12 @@ repo_name: ZeroIntensity/hoist
 nav:
     - Home: index.md
     - Getting Started: getting_started.md
-    - Servers: servers.md
-    - Messages: messages.md
+    - Servers:
+          - servers/starting.md
+          - servers/logging.md
+          - servers/authentication.md
     - Reference: reference.md
+
 theme:
     name: material
     palette:

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import weakref
-from typing import Optional
+from typing import Any, Optional
 
 import aiohttp
 from versions import Version, parse_version
@@ -23,6 +23,20 @@ __all__ = ("Connection",)
 
 class Connection(BaseMessagable, MessageListener):
     """Class handling a connection to a server."""
+
+    __slots__ = (
+        "_url",
+        "_token",
+        "_connected",
+        "_loop",
+        "_session",
+        "_ws",
+        "_minimum_version",
+        "_message_id",
+        "_finalizer",
+        "_closed",
+        "_opened",
+    )
 
     def __init__(
         self,
@@ -251,6 +265,7 @@ class Connection(BaseMessagable, MessageListener):
         self,
         name: str,
         payload: Optional[Payload] = None,
+        **payload_json: Any,
     ) -> JSONLike:
         """Execute an operation on the server."""
         if not self._ws:
@@ -258,12 +273,13 @@ class Connection(BaseMessagable, MessageListener):
                 "not connected to websocket (did you forget to call connect?)"
             )
 
+        data = payload or {}
         try:
             res = await self._execute_action(
                 "operation",
                 {
                     "operation": name,
-                    "data": payload,
+                    "data": {**data, **payload_json},
                 },
             )
         except ServerResponseError as e:

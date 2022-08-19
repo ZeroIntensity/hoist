@@ -182,6 +182,7 @@ def generate_reference_dict(
                     float,
                     type(None),
                     tuple,
+                    set,
                 ),
             ):
                 continue

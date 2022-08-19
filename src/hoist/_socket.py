@@ -51,6 +51,12 @@ _RICH_STATUSES: Dict[Status, str] = {
 class Socket:
     """Class for handling a WebSocket."""
 
+    __slots__ = (
+        "_ws",
+        "_logged",
+        "_status",
+    )
+
     def __init__(
         self,
         ws: WebSocket,
@@ -190,11 +196,11 @@ class Socket:
 
     async def close(self, code: int) -> None:
         """Gracefully close the connection."""
-        await self.ws.close(code)
         log(
             "disconnect",
             f"no longer receiving{make_client_msg(self.ws.client)}",
         )
+        await self.ws.close(code)
 
     @property
     def address(self) -> Optional[Address]:

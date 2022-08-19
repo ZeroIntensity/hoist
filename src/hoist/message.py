@@ -15,6 +15,13 @@ __all__ = (
 class BaseMessage(MessageListener, ABC):
     """Base class for handling a message."""
 
+    __slots__ = (
+        "_conn",
+        "_msg",
+        "_data",
+        "_replying",
+    )
+
     def __init__(
         self,
         conn: BaseMessagable,
@@ -64,6 +71,8 @@ class BaseMessage(MessageListener, ABC):
 
 class Message(BaseMessage):
     """Object handling a message."""
+
+    __slots__ = ("_id",)
 
     def __init__(
         self,

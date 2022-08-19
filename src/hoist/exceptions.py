@@ -21,6 +21,13 @@ __all__ = (
 
 
 class _ResponseError(Exception):
+    __slots__ = (
+        "_code",
+        "_error",
+        "_message",
+        "_payload",
+    )
+
     def __init__(
         self,
         *args,
@@ -75,6 +82,11 @@ class InvalidVersionError(Exception):
 
 class SchemaValidationError(Exception):
     """Schema validation failed."""
+
+    __slots__ = (
+        "_current",
+        "_needed",
+    )
 
     def __init__(
         self,

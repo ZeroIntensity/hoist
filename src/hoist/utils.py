@@ -15,7 +15,7 @@ __all__ = (
     "main",
     "connect",
     "start",
-    "connect_to",
+    "connect_with",
     "debug",
     "serve",
     "connect_no_ctx",
@@ -85,9 +85,9 @@ def serve(
         srvr.close()
 
 
-def connect_to(
-    url: UrlLike,
+def connect_with(
     token: str,
+    url: UrlLike = "http://localhost:5000",
     **kwargs: Any,
 ):
     """Call a function with the connection."""

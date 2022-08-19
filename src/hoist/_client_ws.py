@@ -1,8 +1,7 @@
 import asyncio
 import logging
-from typing import (
-    TYPE_CHECKING, Dict, Iterator, NamedTuple, Optional, TypeVar, overload
-)
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, Iterator, Optional, TypeVar, overload
 
 from aiohttp import ClientWebSocketResponse
 from typing_extensions import Literal
@@ -26,7 +25,8 @@ if TYPE_CHECKING:
 __all__ = ("ServerSocket",)
 
 
-class _Response(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class _Response:
     success: bool
     data: Optional[Payload]
     error: Optional[str]
@@ -55,6 +55,17 @@ NOTE: can't generic asyncio.Queue directly due to compatibility with other versi
 
 class ServerSocket:
     """Class for handling a WebSocket connection to a server."""
+
+    __slots__ = (
+        "_ws",
+        "_token",
+        "_logged",
+        "_closed",
+        "_message_listener",
+        "_client",
+        "_receiving",
+        "_messages",
+    )
 
     def __init__(
         self,

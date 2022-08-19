@@ -57,11 +57,11 @@ async def _():
         await c.close()
 
 
-@test("connect_to")
+@test("connect_with")
 async def _():
     with hoist.serve("test"):
 
-        @hoist.connect_to("http://localhost:5000", "test")
+        @hoist.connect_with("test")
         async def x(server: hoist.Connection):
             assert isinstance(server, hoist.Connection)
             await server.message("")

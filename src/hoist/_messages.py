@@ -1,10 +1,11 @@
 import inspect
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import (
-    TYPE_CHECKING, Any, AsyncIterator, Dict, List, NamedTuple, Optional, Tuple,
-    TypeVar, Union, get_type_hints
+    TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple, TypeVar,
+    Union, get_type_hints
 )
 
 from typing_extensions import Final
@@ -42,7 +43,9 @@ class ListenerParam(Enum):
     MESSAGE_AND_PAYLOAD = 3
 
 
-class ListenerData(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class ListenerData:
+
     listener: Listener
     param: Optional[Union[DataclassLike, Schema]]
     param_type: ListenerParam
@@ -68,6 +71,7 @@ async def _process_listeners(
         func = i.listener
         param = i.param
         typ = i.param_type
+        called = True
 
         if typ is ListenerParam.NONE:
             await func()  # type: ignore
@@ -84,10 +88,10 @@ async def _process_listeners(
             verify_schema(schema, message.data)
         except SchemaValidationError:
             schema_failed.append(func.__name__)
+            called = False
             continue
 
         payload = message.data
-        called = True
         await func(
             message,  # type: ignore
             payload if is_schema else param(**payload),  # type: ignore
@@ -106,6 +110,12 @@ async def _process_listeners(
 
 class MessageListener:
     """Base class for handling message listening."""
+
+    __slots__ = (
+        "_message_listeners",
+        "_current_id",
+        "_all_messages",
+    )
 
     def __init__(
         self,
@@ -182,7 +192,7 @@ class MessageListener:
             params = len(inspect.signature(func).parameters)
             value = ListenerData(
                 func,
-                param,
+                param or dict,
                 ListenerParam.NONE
                 if not params
                 else ListenerParam.MESSAGE_ONLY

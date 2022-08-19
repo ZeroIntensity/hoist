@@ -39,8 +39,9 @@ def _showwarning(
             Panel(
                 text,
                 title=f"[bold dim yellow]{category.__name__}",
-                subtitle=f"[bold italic magenta]\n{filename}, line {lineno}",
+                subtitle=f"[dim italic cyan]\n{filename}, line {lineno}",
                 highlight=True,
+                style="bold dim yellow",
             )
         )
     else:

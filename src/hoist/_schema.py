@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from ._logging import log
 from ._typing import Payload, Schema
@@ -14,6 +15,9 @@ def verify_schema(schema: Schema, data: Payload) -> None:
     """Verify that a payload matches the schema."""
     for key, typ in schema.items():
         value = data.get(key)
+        if key is Any:
+            continue
+
         vtype = type(value) if value is not None else None
 
         if isinstance(typ, tuple):

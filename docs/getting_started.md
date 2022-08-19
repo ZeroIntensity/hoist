@@ -23,8 +23,6 @@ git clone https://github.com/ZeroIntensity/hoist && cd hoist
 pip install .
 ```
 
-### Development
-
 ## Basic Server
 
 Once Hoist has ben installed, we can run a basic server to make sure everything is working properly.
@@ -60,7 +58,7 @@ Now, open a new Python file and use the following to test that the server is wor
 ```py
 import hoist
 
-@hoist.connect_to("http://localhost:5000", "test")
+@hoist.connect_with("test")
 async def main(server: hoist.Connection) -> None:
     await server.message("hi")
 ```
@@ -77,7 +75,7 @@ Congratulations! You have successfully written your first program with Hoist!
 
 ## Utilities
 
-In the above code, you may have noticed something different about Hoist. Traditionally, you would instantiate some class and then use that in a context manager. Instead, we used the `connect_to` decorator. This is one of Hoist's utilities.
+In the above code, you may have noticed something different about Hoist. Traditionally, you would instantiate some class and then use that in a context manager. Instead, we used the `connect_with` decorator. This is one of Hoist's utilities.
 
 Hoist has several utilities to make things nicer for the developer and to minimize boilerplate code. The above is identical to the following code:
 
@@ -95,7 +93,7 @@ if __name__ == '__main__':
 
 Sure, you could use this and it would work just fine, but writing it might waste time or get repetitive over time.
 
-However, high-level utilities like that can have downsides. Something like `connect_to` only works for that single use case, and isn't very flexible.
+However, high-level utilities like that can have downsides. Something like `connect_with` only works for that single use case, and isn't very flexible.
 
 There are alternatives for when you need it though. Hoist has a utility called `main`, which removes `asyncio` boilerplate:
 

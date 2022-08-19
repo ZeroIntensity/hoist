@@ -8,7 +8,7 @@ import hoist
 server = hoist.start("test") # set "test" as the authentication key
 
 @server.receive("hello")
-async def hello(socket: hoist.Message, payload: dict) -> None:
+async def hello(message: hoist.Message) -> None:
     print("server got hello")
     await message.reply("hi")
 ```
@@ -16,10 +16,10 @@ async def hello(socket: hoist.Message, payload: dict) -> None:
 ```py
 import hoist
 
-@hoist.connect_to("http://localhost:5000", "test") # log with "test"
+@hoist.connect_with("test") # log with "test"
 async def main(server: hoist.Connection):
     @server.receive("hi")
-    async def hello(message: hoist.Message, payload: dict):
+    async def hello():
         print("client got hi")
 
     await server.message("hello")
@@ -33,9 +33,9 @@ At its core, it's just a WebSocket/HTTP library, but built in a way to make the 
 
 ## Why should I use Hoist?
 
-Hoist is very high level and focuses on developer experience and simplicity. It does all the heavy lifting, so you don't have to.
+Hoist is high level and focuses on developer experience and simplicity. It does all the heavy lifting, so you don't have to.
 
-In Hoist, you don't have to worry about your server failing or giving some arbitrary response.
+In Hoist, you don't have to worry about your server crashing or giving some arbitrary response.
 
 ## Why shouldn't I use Hoist?
 

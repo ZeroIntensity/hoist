@@ -66,3 +66,83 @@ async def _(s: hoist.Server = server):  # type: ignore
                 await msg.reply("test")
 
         assert called
+
+
+@test("message listener parameters")
+async def _():
+    with hoist.serve("test") as s:
+
+        @s.receive("x")
+        async def x(message: hoist.Message):
+            for i in range(1, 4):
+                await message.reply(str(i))
+
+        async with hoist.connect("test") as co:
+            a_called: bool = False
+            b_called: bool = False
+            c_called: bool = False
+
+            @co.receive("1")
+            async def a():
+                nonlocal a_called
+                a_called = True
+
+            @co.receive("2")
+            async def b(message: hoist.Message):
+                nonlocal b_called
+                b_called = True
+                assert type(message) is hoist.Message
+
+            @co.receive("3")
+            async def c(message: hoist.Message, payload: dict):
+                nonlocal c_called
+                c_called = True
+                assert type(message) is hoist.Message
+                assert type(payload) is dict
+
+            await co.message("x")
+
+            assert a_called
+            assert b_called
+            assert c_called
+
+
+@test("message listener parameters without type hints")
+async def _():
+    with hoist.serve("test") as s:
+
+        @s.receive("x")
+        async def x(message: hoist.Message):
+            for i in range(1, 4):
+                await message.reply(str(i))
+
+        async with hoist.connect("test") as co:
+            a_called: bool = False
+            b_called: bool = False
+            c_called: bool = False
+
+            @co.receive("1")
+            async def a():
+                nonlocal a_called
+                a_called = True
+
+            @co.receive("2")
+            async def b(message):
+                nonlocal b_called
+                b_called = True
+                assert type(message) is hoist.Message
+
+            @co.receive("3")
+            async def c(message, payload):
+                nonlocal c_called
+                c_called = True
+                assert type(message) is hoist.Message
+                assert type(payload) is dict
+
+            await co.message("x")
+
+            assert a_called
+            assert b_called
+            assert c_called
+
+            # yeah i copy pasted who cares

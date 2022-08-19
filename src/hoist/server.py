@@ -132,6 +132,22 @@ _PY_BUILTINS = {str, float, int, bool, dict}
 class Server(MessageListener):
     """Class for handling a server."""
 
+    __slots__ = (
+        "_token",
+        "_hide_token",
+        "_login_func",
+        "_minimum_version",
+        "_operations",
+        "_supported_operations",
+        "_unsupported_operations",
+        "_clients",
+        "_server",
+        "_start_called",
+        "_all_connections",
+        "_is_fancy",
+        "_exceptions",
+    )
+
     def __init__(
         self,
         token: Optional[str] = None,
@@ -171,7 +187,7 @@ class Server(MessageListener):
 
     async def _call_operation(
         self,
-        op: OperationData[T],
+        op: OperationData,
         payload: Payload,
     ) -> JSONLike:
         """Call an operation."""
@@ -189,7 +205,7 @@ class Server(MessageListener):
         }:
             if custom_payload:
                 hints = get_type_hints(func)
-                cl: Type[T] = hints[tuple(hints.keys())[0]]
+                cl: Type = hints[tuple(hints.keys())[0]]
 
                 verify_schema(get_type_hints(cl), payload)
                 data = cl(**payload)
@@ -665,7 +681,14 @@ class Server(MessageListener):
                 None,
                 SINGLE_NEW_MESSAGE,
             )
-            await transport.message(message, payload)
+            try:
+                await transport.message(message, payload)
+            except Exception as e:
+                hlog(
+                    "broadcast",
+                    f"exception occured while sending: {type(e).__name__} - {e}",  # noqa
+                    level=logging.WARNING,
+                )
 
     def close(self) -> None:
         """Close the server."""
@@ -701,24 +724,24 @@ class Server(MessageListener):
 
             if params:
                 annotations = [i.annotation for i in params.values()]
+                plen: int = len(params)
+                first = annotations[0]
 
-                if annotations:
-                    if annotations == [Server]:
-                        op_type = OperatorParam.SERVER_ONLY
-                    elif annotations[0] == Server:
+                if annotations == [Server]:
+                    op_type = OperatorParam.SERVER_ONLY
+                elif first == Server:
+                    op_type = OperatorParam.SERVER_AND_PAYLOAD
+                else:
+                    if (first in _PY_BUILTINS) and (first is not dict):
+                        op_type = OperatorParam.DYNAMIC
+                    else:
                         op_type = (
                             OperatorParam.SERVER_AND_PAYLOAD
-                            if len(params) == 2
+                            if plen == 2
                             else OperatorParam.PAYLOAD_ONLY
+                            if plen == 1
+                            else OperatorParam.DYNAMIC
                         )
-
-                    else:
-                        plen: int = len(params)
-                        if plen <= 3:
-                            op_type = OperatorParam.DYNAMIC
-
-                else:
-                    op_type = OperatorParam.SERVER_AND_PAYLOAD
             else:
                 op_type = OperatorParam.NONE
 

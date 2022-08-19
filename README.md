@@ -7,10 +7,10 @@
 ```py
 import hoist
 
-server = hoist.start("test") # set "test" as the authentication key
+server = hoist.start("test")
 
 @server.receive("hello")
-async def hello(socket: hoist.Message, payload: dict) -> None:
+async def hello(message: hoist.Message) -> None:
     print("server got hello")
     await message.reply("hi")
 ```
@@ -18,10 +18,11 @@ async def hello(socket: hoist.Message, payload: dict) -> None:
 ```py
 import hoist
 
-@hoist.connect_to("http://localhost:5000", "test") # log in to the server with key "test"
+@hoist.connect_with("test")
 async def main(server: hoist.Connection):
+
     @server.receive("hi")
-    async def hello(message: hoist.Message, payload: dict):
+    async def hello():
         print("client got hi")
 
     await server.message("hello")

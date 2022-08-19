@@ -16,6 +16,8 @@ __all__ = ("UvicornServer",)
 class UvicornServer(uvicorn.Server):
     """Threadable uvicorn server."""
 
+    __slots__ = ("_thread",)
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._thread: Optional[Thread] = None

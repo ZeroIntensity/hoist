@@ -1,11 +1,10 @@
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
 from typing import (
-    TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional, Tuple, TypeVar,
-    Union, get_type_hints
+    TYPE_CHECKING, Any, AsyncIterator, Dict, List, NamedTuple, Optional, Tuple,
+    TypeVar, Union, get_type_hints
 )
 
 from typing_extensions import Final
@@ -43,8 +42,7 @@ class ListenerParam(Enum):
     MESSAGE_AND_PAYLOAD = 3
 
 
-@dataclass(slots=True, frozen=True)
-class ListenerData:
+class ListenerData(NamedTuple):
 
     listener: Listener
     param: Optional[Union[DataclassLike, Schema]]

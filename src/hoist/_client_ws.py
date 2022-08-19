@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Iterator, Optional, TypeVar, overload
+from typing import (
+    TYPE_CHECKING, Dict, Iterator, NamedTuple, Optional, TypeVar, overload
+)
 
 from aiohttp import ClientWebSocketResponse
 from typing_extensions import Literal
@@ -25,8 +26,7 @@ if TYPE_CHECKING:
 __all__ = ("ServerSocket",)
 
 
-@dataclass(slots=True, frozen=True)
-class _Response:
+class _Response(NamedTuple):
     success: bool
     data: Optional[Payload]
     error: Optional[str]

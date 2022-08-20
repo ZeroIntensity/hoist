@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "hatchling"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
@@ -19,8 +19,6 @@ classifiers = [
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
   "starlette>=0.20.4",

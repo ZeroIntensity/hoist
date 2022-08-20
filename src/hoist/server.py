@@ -516,6 +516,7 @@ class Server(MessageListener):
             )
 
             if typ == "http":
+                response: Response
                 if path == "/hoist/ack":
                     msg = {"version": __version__}
                     hlog("ack", msg, level=logging.DEBUG)

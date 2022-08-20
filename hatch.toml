@@ -1,18 +1,6 @@
 [version]
 path = "src/hoist/__about__.py"
 
-[build.targets.sdist]
-exclude = [
-  "/.github",
-  "/docs",
-  "/page",
-  "/.mypy_cache",
-  "/.venv",
-  "/tests",
-]
-[build.targets.wheel]
-packages = ["src/hoist"]
-
 [envs.default]
 dependencies = [
   "ward",
@@ -37,3 +25,14 @@ serve = "mkdocs serve --dev-addr localhost:8000"
 
 [[envs.test.matrix]]
 python = ["37", "38", "39", "310"]
+
+[build.targets.wheel.hooks.mypyc]
+dependencies = ["hatch-mypyc"]
+exclude = ["client.py", "_messages.py", "utils.py", "_uvicorn.py", "_socket.py"]
+require-runtime-dependencies = true
+mypy-args = [
+  "--ignore-missing-imports",
+]
+
+[build.targets.sdist]
+include = ["src/hoist"]

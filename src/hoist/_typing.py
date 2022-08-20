@@ -24,16 +24,8 @@ class DataclassLike(Protocol):
         ...
 
 
-class HasDict(Protocol):
-    """Object with `__dict__` attribute."""
-
-    @property
-    def __dict__(self):
-        ...
-
-
 _PyBuiltins = Union[str, float, int, bool, dict, None]
-JSONLike = Union[_PyBuiltins, HasDict]
+JSONLike = Union[_PyBuiltins, type]
 Payload = Dict[str, Any]
 Operator = Union[
     Callable[[Any], Awaitable[JSONLike]],

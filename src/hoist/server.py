@@ -26,7 +26,10 @@ from versions import Version, parse_version
 from yarl import URL
 
 from .__about__ import __version__
-from ._errors import *
+from ._errors import (
+    BAD_VERSION, INVALID_ACTION, INVALID_CONTENT, LOGIN_FAILED, SERVER_ERROR,
+    UNKNOWN_OPERATION, UNSUPPORTED_OPERATION
+)
 from ._html import HTML
 from ._logging import hlog, log
 from ._messages import (
@@ -259,12 +262,13 @@ class Server(MessageListener):
         so = self.supported_operations
         uo = self.unsupported_operations
 
-        if "*" in so:
-            if len(so) > 1:
-                raise ValueError(
-                    '"*" should be the only operation',
-                )
-            return
+        for i in {so, uo}:
+            if "*" in i:
+                if len(i) > 1:
+                    raise ValueError(
+                        '"*" should be the only operation',
+                    )
+                return
 
         for i in so:
             if i in uo:
@@ -278,6 +282,9 @@ class Server(MessageListener):
         """Verify that an operation is supported by the server."""
         so = self.supported_operations
         uo = self.unsupported_operations
+
+        if ("*" in uo) and (operation not in so):
+            return False
 
         if operation in uo:
             return False

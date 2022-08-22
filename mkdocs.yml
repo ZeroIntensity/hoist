@@ -10,6 +10,11 @@ nav:
           - servers/starting.md
           - servers/logging.md
           - servers/authentication.md
+          - servers/operations.md
+    - Clients:
+          - clients/connecting.md
+          - clients/executing_operations.md
+    - Messages: messages.md
     - Reference: reference.md
 
 theme:
@@ -49,8 +54,12 @@ markdown_extensions:
           anchor_linenums: true
     - pymdownx.inlinehilite
     - pymdownx.snippets
-    - pymdownx.superfences
     - admonition
     - pymdownx.details
     - pymdownx.tabbed:
           alternate_style: true
+    - pymdownx.superfences:
+          custom_fences:
+              - name: mermaid
+                class: mermaid
+                format: !!python/name:pymdownx.superfences.fence_code_format

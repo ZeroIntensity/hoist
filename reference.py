@@ -17,6 +17,7 @@ HIDDEN_DERIVES = {"Exception", "object"}
 PATCHES = {
     "src.": "",
     "NoneType": "None",
+    "typing.": "",
 }
 
 

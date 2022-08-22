@@ -4,5 +4,5 @@ from .exceptions import *
 from .message import Message
 from .server import Server
 from .utils import (
-    connect, connect_no_ctx, connect_with, debug, main, serve, start
+    connect, connect_directly, connect_with, debug, main, serve, start
 )

@@ -48,3 +48,14 @@ import hoist
 hoist.debug(enable_uvicorn=True)
 server = hoist.start(...)
 ```
+
+## Getting The Logger
+
+All Hoist logging is done under the `hoist` logger:
+
+```py
+import logging
+import hoist
+
+hoist_logger = logging.getLogger("hoist")
+```

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, NoReturn, Optional
 from starlette.datastructures import Address
 from starlette.websockets import WebSocket
 
-from ._errors import *
+from ._errors import ERRORS, INVALID_CONTENT, INVALID_JSON
 from ._logging import hlog, log
 from ._schema import invalid_payload, verify_schema
 from ._typing import Payload, Schema
@@ -172,9 +172,10 @@ class Socket:
         )
 
     async def recv(self, schema: Schema) -> List[Any]:
-        """Receive a message from the client."""
+        """Receive a set of keys from the client."""
         try:
-            load: dict = json.loads(await self.ws.receive_text())
+            text = await self.ws.receive_text()
+            load: Dict[Any, Any] = json.loads(text)
         except json.JSONDecodeError:
             await self.error(INVALID_JSON)
 

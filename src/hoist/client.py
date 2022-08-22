@@ -291,3 +291,7 @@ class Connection(BaseMessagable, MessageListener):
 
         assert res.data
         return res.data["result"]
+
+    async def print(self, text: str):
+        """Alias to `operation("print", {"text": text})`"""
+        await self.operation("print", {"text": text})

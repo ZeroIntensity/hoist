@@ -74,4 +74,4 @@ warnings.formatwarning = _warning_no_src_line  # type: ignore
 
 def warn(message: str, *, category: Optional[Type[Warning]] = None) -> None:
     """Display a warning."""
-    warnings.warn(message, category or RuntimeWarning)
+    warnings.warn(message, category=category or RuntimeWarning)

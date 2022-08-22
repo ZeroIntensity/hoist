@@ -5,6 +5,7 @@ import hoist
 
 @test("custom operations")
 async def _():
+
     with hoist.serve("test") as s:
 
         @s.operation("hello")

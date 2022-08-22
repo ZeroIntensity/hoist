@@ -18,7 +18,7 @@ __all__ = (
     "connect_with",
     "debug",
     "serve",
-    "connect_no_ctx",
+    "connect_directly",
 )
 
 print_exc = Console().print_exception
@@ -55,7 +55,7 @@ async def connect(
         await conn.close()
 
 
-async def connect_no_ctx(
+async def connect_directly(
     token: str,
     url: UrlLike = "http://localhost:5000",
     **kwargs: Any,

@@ -28,7 +28,14 @@ python = ["37", "38", "39", "310"]
 
 [build.targets.wheel.hooks.mypyc]
 dependencies = ["hatch-mypyc"]
-exclude = ["client.py", "_messages.py", "utils.py", "_uvicorn.py", "_socket.py"]
+exclude = [
+  "client.py",
+  "_messages.py",
+  "utils.py",
+  "_uvicorn.py",
+  "reference.py"
+]
+include = ["src/hoist"]
 require-runtime-dependencies = true
 mypy-args = [
   "--ignore-missing-imports",

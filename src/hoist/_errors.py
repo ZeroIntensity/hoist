@@ -23,6 +23,7 @@ SERVER_ERROR: Final = 6
 UNSUPPORTED_OPERATION: Final = 7
 INVALID_ACTION: Final = 8
 
+
 ERRORS: ResponseErrors = {
     INVALID_JSON: (
         "INVALID_JSON",

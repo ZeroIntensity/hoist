@@ -26,20 +26,21 @@ serve = "mkdocs serve --dev-addr localhost:8000"
 [[envs.test.matrix]]
 python = ["37", "38", "39", "310"]
 
-[build.targets.wheel.hooks.mypyc]
-dependencies = ["hatch-mypyc"]
-exclude = [
-  "client.py",
-  "_messages.py",
-  "utils.py",
-  "_uvicorn.py",
-  "reference.py"
-]
-include = ["src/hoist"]
-require-runtime-dependencies = true
-mypy-args = [
-  "--ignore-missing-imports",
-]
+# see https://github.com/mypyc/mypyc/issues/947
+#[build.targets.wheel.hooks.mypyc]
+#dependencies = ["hatch-mypyc"]
+#exclude = [
+#  "client.py",
+#  "_messages.py",
+#  "utils.py",
+#  "_uvicorn.py",
+#  "reference.py"
+#]
+#include = ["src/hoist"]
+#require-runtime-dependencies = true
+#mypy-args = [
+#  "--ignore-missing-imports",
+#]
 
 [build.targets.sdist]
 include = ["src/hoist"]

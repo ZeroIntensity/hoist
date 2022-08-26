@@ -27,6 +27,7 @@ serve = "mkdocs serve --dev-addr localhost:8000"
 python = ["37", "38", "39", "310"]
 
 # see https://github.com/mypyc/mypyc/issues/947
+
 #[build.targets.wheel.hooks.mypyc]
 #dependencies = ["hatch-mypyc"]
 #exclude = [

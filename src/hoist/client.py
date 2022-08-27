@@ -13,8 +13,8 @@ from ._logging import hlog
 from ._messages import BaseMessagable, MessageListener
 from ._typing import JSONLike, MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
-    AlreadyConnectedError, ConnectionFailedError, InvalidVersionError,
-    NotConnectedError, ServerConnectError, ServerResponseError
+    AlreadyConnectedError, InvalidVersionError, NotConnectedError,
+    ServerConnectError, ServerResponseError
 )
 from .message import Message
 
@@ -48,6 +48,16 @@ class Connection(BaseMessagable, MessageListener):
         extra_listeners: Optional[MessageListeners] = None,
         minimum_version: Optional[VersionLike] = None,
     ) -> None:
+        """Constructor for `Connection`.
+
+        Args:
+            url: URL to connect to.
+            token: Token to connect with.
+            loop: Event loop to use.
+            session: `aiohttp` client session to use.
+            extra_listeners: Extra message listeners.
+            minimum_version: Minimum version required to connect to the server.
+        """
         self._url = url
         self._token: Optional[str] = token
         self._connected: bool = False
@@ -87,7 +97,15 @@ class Connection(BaseMessagable, MessageListener):
         return self._connected
 
     def close_sync(self) -> None:
-        """Close the client synchronously."""
+        """Close the client synchronously.
+
+        Example:
+            ```py
+            c = hoist.Connection(...)
+            await c.connect()
+            c.close_sync()
+            ```
+        """
         loop = self._loop
         coro = self.close()
 
@@ -102,7 +120,15 @@ class Connection(BaseMessagable, MessageListener):
             raise e
 
     async def close(self) -> None:
-        """Close the connection."""
+        """Close the connection.
+
+        Example:
+            ```py
+            c = hoist.Connection(...)
+            await c.connect()
+            await c.close()
+            ```
+        """
         if self.closed:
             return
 
@@ -145,7 +171,16 @@ class Connection(BaseMessagable, MessageListener):
                     )
 
     async def connect(self, token: Optional[str] = None) -> None:
-        """Open the connection."""
+        """Open the connection.
+
+        Args:
+            token: Token to connect with. When `None`, uses the current `token` property.
+
+        Raises:
+            AlreadyConnectedError: Already connected to the server.
+            ServerConnectError: Something went wrong when connecting.
+            ValueError: Both the `token` argument and `token` property are `None`
+        """  # noqa
         if self.connected:
             raise AlreadyConnectedError(
                 "already connected to socket",
@@ -176,7 +211,7 @@ class Connection(BaseMessagable, MessageListener):
         try:
             conn = await self._session.ws_connect(url)
         except aiohttp.WSServerHandshakeError as e:
-            raise ConnectionFailedError(
+            raise ServerConnectError(
                 f"failed to connect to {url}, does it support hoist?"
             ) from e
 
@@ -229,7 +264,26 @@ class Connection(BaseMessagable, MessageListener):
         replying: Optional[Message] = None,
         listeners: Optional[MessageListeners] = None,
     ) -> Message:
-        """Send a message to the server."""
+        """Send a message to the server.
+
+        Args:
+            msg: Content of the message.
+            data: Payload to include with the message.
+            replying: Message object to reply to.
+            listeners: Message listeners to add before dispatching.
+
+        Returns:
+            Created message.
+
+        Example:
+            ```py
+            async with hoist.connect(...) as c:
+                await c.message("hello world", {"a": "b"})
+            ```
+
+        Raises:
+            NotConnectedError: Not connected to the server.
+        """
         if not self._ws:
             raise NotConnectedError(
                 "not connected to websocket (did you forget to call connect?)"
@@ -267,7 +321,23 @@ class Connection(BaseMessagable, MessageListener):
         payload: Optional[Payload] = None,
         **payload_json: Any,
     ) -> JSONLike:
-        """Execute an operation on the server."""
+        """Execute an operation on the server.
+
+        Args:
+            name: Name of the operation to execute.
+            payload: Payload to send.
+
+        Example:
+            ```py
+            async with hoist.connect(...) as c:
+                await c.operation("print", {"text": "hi"})
+            ```
+
+        Raises:
+            NotConnectedError: Not connected to the server.
+            ValueError: Specified operation is not valid.
+            ServerResponseError: Arbitrary server response error.
+        """
         if not self._ws:
             raise NotConnectedError(
                 "not connected to websocket (did you forget to call connect?)"

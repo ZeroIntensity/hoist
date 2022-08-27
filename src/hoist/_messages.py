@@ -174,7 +174,12 @@ class MessageListener:
         message: Optional[Union[str, Tuple[str, ...]]] = None,
         parameter: Optional[Union[Schema, T]] = None,
     ):
-        """Add a listener for message receiving."""
+        """Add a listener for message receiving.
+
+        Args:
+            message: Message to listen for.
+            parameter: Parameter type to use.
+        """
 
         def decorator(func: Listener):
             listeners = self.message_listeners
@@ -215,7 +220,12 @@ class MessageListener:
         conn: "BaseMessagable",
         data: Payload,
     ) -> "Message":
-        """Build a message from a payload."""
+        """Build a message from a payload.
+
+        Args:
+            conn: Messagable connection target.
+            data: Payload to create the message from.
+        """
         mid: int = data["id"]
         self._all_messages[mid] = await self._build_message(conn, data)
         return self._all_messages[mid]
@@ -230,7 +240,19 @@ class MessageListener:
         *,
         listeners: Optional[MessageListeners] = None,
     ) -> "Message":
-        """Create a new message wtih the specified ID, or look it up if it already exists."""  # noqa
+        """Create a new message wtih the specified ID, or look it up if it already exists.
+
+        Args:
+            conn: Messagable connection target.
+            content: Message content.
+            message_data: Payload to include with the message.
+            id: ID of the message:
+            replying: Message that the target is replying to.
+            listeners: Extra message listeners.
+
+        Returns:
+            Created message.
+        """  # noqa
         mid: int = id
         obj = self._all_messages.get(mid)
 
@@ -271,7 +293,22 @@ class MessageListener:
         id: Optional[int] = None,
         listeners: Optional[MessageListeners] = None,
     ) -> "Message":
-        """Create a new message."""
+        """Create a new message.
+
+        Args:
+            conn: Messagable connection target.
+            content: Message content.
+            message_data: Payload to include with the message.
+            id: ID of the message:
+            replying: Message that the target is replying to.
+            listeners: Extra message listeners.
+
+        Returns:
+            Created message.
+
+        Raises:
+            ValueError: Message ID is already in use.
+        """
         from .message import Message
 
         self._current_id += 1
@@ -307,7 +344,14 @@ class MessageListener:
         return obj
 
     async def lookup(self, id: int) -> "Message":
-        """Lookup a message by its ID."""
+        """Lookup a message by its ID.
+
+        Args:
+            id: ID of the message to lookup.
+
+        Raises:
+            ValueError: Message ID does not exist.
+        """
         try:
             obj = self._all_messages[id]
         except KeyError as e:
@@ -345,7 +389,13 @@ class BaseMessagable(ABC):
         data: Optional[Payload] = None,
         replying: Optional["Message"] = None,
     ) -> "PendingMessage":
-        """Get a message to be sent later."""
+        """Get a message to be sent later.
+
+        Args:
+            msg: Message content.
+            data: Payload to include with the message.
+            replying: Message to reply to.
+        """
         from .message import PendingMessage
 
         return PendingMessage(
@@ -362,7 +412,13 @@ class BaseMessagable(ABC):
         data: Optional[Payload] = None,
         replying: Optional["Message"] = None,
     ) -> AsyncIterator["PendingMessage"]:
-        """Send a message after the context has finished."""
+        """Send a message after the context has finished.
+
+        Args:
+            msg: Message content.
+            data: Payload to include with the message.
+            replying: Message to reply to.
+        """
         from .message import PendingMessage
 
         obj = PendingMessage(
@@ -384,5 +440,15 @@ class BaseMessagable(ABC):
         replying: Optional["Message"] = None,
         listeners: Optional[MessageListeners] = None,
     ) -> "Message":
-        """Send a message."""
+        """Send a message.
+
+        Args:
+            msg: Message content.
+            data: Payload to include with the message.
+            replying: Message to reply to.
+            listeners: Extra listeners to include.
+
+        Returns:
+            Created message.
+        """
         ...

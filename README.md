@@ -2,6 +2,9 @@
 
 ## Easy client-server communication
 
+-   [Documentation](https://hoist.zintensity.dev)
+-   [PyPI](https://pypi.org/project/hoist-http/)
+
 ### Quick Example
 
 ```py

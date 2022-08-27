@@ -1,5 +1,8 @@
 # Welcome to Hoist's documentation!
 
+-   [Repository](https://github.com/ZeroIntensity/hoist)
+-   [PyPI](https://pypi.org/project/hoist-http/)
+
 ### Quick Example
 
 ```py

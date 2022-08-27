@@ -30,6 +30,15 @@ class BaseMessage(MessageListener, ABC):
         data: Optional[Payload] = None,
         replying: Optional["Message"] = None,
     ) -> None:
+        """Construct for `BaseMessage`.
+
+        Args:
+            conn: Messagable connection target.
+            msg: Content of the message.
+            data: Payload included with the message.
+            replying: Message object that the current one is replying to.
+
+        """
         self._conn = conn
         self._msg = msg
         self._data = data or {}
@@ -56,7 +65,14 @@ class BaseMessage(MessageListener, ABC):
         self,
         convert_replies: bool = True,
     ) -> dict:
-        """Convert the message to a dictionary."""
+        """Convert the message to a dictionary.
+
+        Args:
+            convert_replies: Should message objects under `replying` be converted to a `dict`.
+
+        Returns:
+            The created `dict` object.
+        """  # noqa
         ...
 
     def __repr__(self) -> str:
@@ -96,14 +112,21 @@ class Message(BaseMessage):
         msg: str,
         data: Optional[Payload] = None,
     ) -> "Message":
-        """Send a message to the target."""
+        """Reply to the current message.
+
+        Args:
+            msg: Content to reply with.
+            data: Payload to include in the reply.
+
+        Returns:
+            Created message.
+        """
         return await self._conn.message(msg, data or {}, replying=self)
 
-    def to_dict(
+    def to_dict(  # noqa
         self,
         convert_replies: bool = True,
     ) -> dict:
-        """Convert the current instance to a dictionary."""
         reply = self.replying
 
         return {
@@ -115,8 +138,7 @@ class Message(BaseMessage):
             "message": self.content,
         }
 
-    def receive(self, *args, **kwargs):
-        """Rece"""
+    def receive(self, *args, **kwargs):  # noqa
         warn(
             "receive() should not be called on a message object\nif you would like to handle replies, please use message_later()",  # noqa
         )
@@ -159,7 +181,11 @@ class PendingMessage(BaseMessage):
         }
 
     async def send(self) -> Message:
-        """Send the message."""
+        """Send the message.
+
+        Returns:
+            Created message.
+        """
         return await self._conn.message(
             self.content,
             self.data,

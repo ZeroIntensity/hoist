@@ -25,7 +25,18 @@ print_exc = Console().print_exception
 
 
 def main(func: Callable[[], Coroutine[Any, Any, Any]]) -> None:
-    """Run a main async function."""
+    """Run a main async function.
+
+    Args:
+        func: Function to call.
+
+    Example:
+        ```py
+        @hoist.main
+        async def main() -> None:
+            ...
+        ```
+    """
     frame = inspect.currentframe()
     assert frame
     assert frame.f_back
@@ -46,7 +57,18 @@ async def connect(
     url: UrlLike = "http://localhost:5000",
     **kwargs: Any,
 ):
-    """Connect to a Hoist server."""
+    """Connect to a Hoist server.
+
+    Args:
+        token: Token to use when connecting.
+        url: Target server URL.
+
+    Example:
+        ```py
+        async with hoist.connect("target token") as c:
+            ...
+        ```
+    """
     try:
         conn = Connection(url, token, **kwargs)
         await conn.connect()
@@ -60,7 +82,17 @@ async def connect_directly(
     url: UrlLike = "http://localhost:5000",
     **kwargs: Any,
 ):
-    """Connect to a Hoist server without a context manager."""
+    """Connect to a Hoist server without a context manager.
+
+    Args:
+        token: Token to use when connecting.
+        url: Target server URL.
+
+    Example:
+        ```py
+        server = await hoist.connect_directly("...")
+        ```
+    """
     conn = Connection(url, token, **kwargs)
     await conn.connect()
     return conn
@@ -75,7 +107,20 @@ def serve(
     port: int = 5000,
     **kwargs,
 ):
-    """Serve a Hoist server."""
+    """Serve a Hoist server.
+
+    Args:
+        token: Token to use on the server.
+        server: Existing server to use.
+        host: Where to host the server.
+        port: What port to put the server on.
+
+    Example:
+        ```py
+        with hoist.serve("my authentication token") as server:
+            ...
+        ```
+    """
     try:
 
         srvr = server or Server(token, **kwargs)
@@ -90,7 +135,19 @@ def connect_with(
     url: UrlLike = "http://localhost:5000",
     **kwargs: Any,
 ):
-    """Call a function with the connection."""
+    """Call a function with the connection.
+
+    Args:
+        token: Token to use when connecting.
+        url: Target server URL.
+
+    Example:
+        ```py
+        @hoist.connect_with("...")
+        async def conn(server: hoist.Connection):
+            ...
+        ```
+    """
 
     def inner(func: Callable[[Connection], Awaitable[Any]]):
         async def _wrapper():
@@ -127,7 +184,23 @@ def start(
     fancy: bool = False,
     **kwargs,
 ) -> Server:
-    """Start a Hoist server."""
+    """Start a Hoist server.
+
+    Args:
+        token: Token to use on the server.
+        server: Existing server to use.
+        host: Where to host the server.
+        port: What port to put the server on.
+        fancy: Whether fancy output should be enabled.
+
+    Returns:
+        Started server object.
+
+    Example:
+        ```py
+        server = hoist.start("my token", host="localhost", port=5001)
+        ```
+    """
     srvr = server or Server(token, **kwargs)
     srvr.start(host=host, port=port, fancy=fancy)
     return srvr
@@ -138,7 +211,12 @@ def debug(
     trace: Union[bool, str] = False,
     enable_uvicorn: bool = False,
 ) -> None:
-    """Enable debug logging."""
+    """Enable debug logging.
+
+    Args:
+        trace: Should debug tracing should be enabled.
+        enable_uvicorn: Should uviocrn logs be enabled.
+    """
     logging.getLogger("hoist").setLevel(logging.DEBUG)
     os.environ["HOIST_TRACE"] = (
         trace if not isinstance(trace, bool) else "all" if trace else ""

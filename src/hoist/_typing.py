@@ -33,7 +33,11 @@ Operator = Union[
     Callable[["Server", Any], Awaitable[JSONLike]],
     Callable[["Server"], Awaitable[JSONLike]],
 ]
-SchemaNeededType = Union[Type[Any], Tuple[Optional[Type[Any]], ...]]
+_SchemaType = Optional[Type[Any]]
+SchemaNeededType = Union[
+    Type[Any],
+    Union[Tuple[_SchemaType, ...], List[_SchemaType]],
+]
 Schema = Dict[str, SchemaNeededType]
 OperationData = Tuple[Operator, "OperatorParam", bool]
 Operations = Dict[str, OperationData]
@@ -46,7 +50,7 @@ Listener = Union[
     Callable[[], Awaitable[None]],
 ]
 MessageListeners = Dict[
-    Optional[Union[Tuple[str, ...], str]],
+    Optional[str],
     List["ListenerData"],
 ]
 VersionLike = Union[str, "Version"]

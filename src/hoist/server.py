@@ -166,6 +166,7 @@ class Server(MessageListener):
         supported_operations: Optional[Sequence[str]] = None,
         extra_listeners: Optional[MessageListeners] = None,
         fancy: Optional[bool] = None,
+        disable_builtins: bool = False,
     ) -> None:
         """Constructor for `Server`.
 
@@ -181,6 +182,7 @@ class Server(MessageListener):
             supported_operations: Operations supported by the server.
             extra_listeners: Extra message listeners.
             fancy: Should the server run in fancy mode.
+            disable_builtins: Should all builtin operations be disabled.
         """
         self._token: str = token or "".join(
             [choice(default_token_choices) for _ in range(default_token_len)],
@@ -194,7 +196,11 @@ class Server(MessageListener):
         self._minimum_version = minimum_version
         self._operations = {**BASE_OPERATIONS, **(extra_operations or {})}
         self._supported_operations = supported_operations or ["*"]
-        self._unsupported_operations = unsupported_operations or []
+        self._unsupported_operations = (
+            unsupported_operations or []
+            if not disable_builtins
+            else tuple(BASE_OPERATIONS.keys())
+        )
         self._clients: List[Socket] = []
         self._server: Optional[UvicornServer] = None
         self._start_called: bool = False

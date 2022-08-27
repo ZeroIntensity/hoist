@@ -64,9 +64,9 @@ def _warning_no_src_line(
     line: Optional[str] = None,
 ) -> str:
     if (file is None and sys.stderr is not None) or file is sys.stderr:
-        return str(message)
+        return str(message) + "\n"
     else:
-        return f"{filename}:{lineno} {category.__name__}: {message}"
+        return f"{filename}:{lineno} {category.__name__}: {message}\n"
 
 
 warnings.formatwarning = _warning_no_src_line  # type: ignore

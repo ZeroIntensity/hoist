@@ -1,5 +1,8 @@
 from enum import Enum
-from typing import TypeVar
+from pathlib import Path
+from typing import Any, Callable, Optional, TypeVar
+
+import aiohttp
 
 from ._typing import Operations
 
@@ -21,13 +24,35 @@ T = TypeVar("T")
 
 async def _print(text: str):
     print(text)
-    return 1
+
+
+async def _get(url: str):
+    async with aiohttp.ClientSession() as s:
+        async with s.get(url) as s:
+            return s.text
+
+
+async def _read(path: str):
+    return Path.read_text(Path(path))
+
+
+def _make(
+    fn: Callable[..., Any],
+    *,
+    name: Optional[str] = None,
+):
+    return {
+        name
+        or fn.__name__[1:]: (  # noqa
+            fn,
+            OperatorParam.DYNAMIC,
+            True,
+        )
+    }
 
 
 BASE_OPERATIONS: Operations = {
-    "print": (
-        _print,
-        OperatorParam.DYNAMIC,
-        True,
-    )
+    **_make(_print),
+    **_make(_get),
+    **_make(_read),
 }

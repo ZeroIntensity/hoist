@@ -30,7 +30,7 @@ async def main(server: hoist.Connection):
 
 ## What is Hoist
 
-Hoist is a library created to make client-server communication very simple.
+Hoist is a library created to make client-server communication very easy, or just to provide a personal API for developer.
 
 At its core, it's just a WebSocket/HTTP library, but built in a way to make the developers life easy while keeping communication flexible and predictable.
 

@@ -1,5 +1,3 @@
-from typing import Any
-
 from ward import fixture, test
 
 import hoist
@@ -146,3 +144,36 @@ async def _():
             assert c_called
 
             # yeah i copy pasted who cares
+
+
+@test("catch all listeners")
+async def _():
+    with hoist.serve("test") as s:
+        s_called: bool = False
+
+        @s.receive()
+        async def rc():
+            nonlocal s_called
+            s_called = True
+
+        async with hoist.connect("test") as c:
+            await c.message("")
+
+        assert s_called
+
+
+@test("multiple messages in one listener")
+async def _():
+    with hoist.serve("test") as s:
+        amount: int = 0
+
+        @s.receive(("a", "b"))
+        async def rc():
+            nonlocal amount
+            amount += 1
+
+        async with hoist.connect("test") as c:
+            await c.message("a")
+            await c.message("b")
+
+        assert amount == 2

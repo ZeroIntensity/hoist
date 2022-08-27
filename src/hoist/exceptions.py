@@ -117,7 +117,7 @@ class SchemaValidationError(Exception):
         """Format the needed type."""
         needed = self.needed
         if not isinstance(needed, tuple):
-            return needed.__name__
+            return needed.__name__  # type: ignore
 
         return ",".join([i.__name__ if i else str(i) for i in needed])
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## `1.0.0-rc.1`
+
+-   Added support for unions on schemas.
+-   Add more builtin operations.
+-   Added `disable_builtins` to `Server`
+-   Patch handling of multiple messages with one listener.
+
+## `1.0.0-beta.1`
+
+-   Small patches.
+-   Updated CLI.
+
 ## `1.0.0-alpha.3`
 
 -   Handling for `SchemaValidationError` on the client.
@@ -17,8 +29,8 @@
 
 ## `1.0.0-alpha.2`
 
--   Extra version handling on frontend page
--   Small patches
+-   Extra version handling on frontend page.
+-   Small patches.
 
 ## `1.0.0-alpha.1`
 

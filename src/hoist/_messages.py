@@ -204,9 +204,16 @@ class MessageListener:
             )
 
             if message in listeners:
-                listeners[message].append(value)
+                listeners[message].append(value)  # type: ignore
             else:
-                listeners[message] = [value]
+                if not isinstance(message, tuple):
+                    listeners[message] = [value]
+                else:
+                    for i in message:
+                        if i in listeners:
+                            listeners[i].append(value)
+                        else:
+                            listeners[i] = [value]
 
         return decorator
 

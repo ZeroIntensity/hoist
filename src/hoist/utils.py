@@ -215,7 +215,7 @@ def debug(
 
     Args:
         trace: Should debug tracing should be enabled.
-        enable_uvicorn: Should uviocrn logs be enabled.
+        enable_uvicorn: Should uvicorn logs be enabled.
     """
     logging.getLogger("hoist").setLevel(logging.DEBUG)
     os.environ["HOIST_TRACE"] = (

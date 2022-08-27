@@ -14,7 +14,11 @@ nav:
     - Clients:
           - clients/connecting.md
           - clients/executing_operations.md
-    - Messages: messages.md
+    - Communication:
+          - communication/messages.md
+          - communication/replies.md
+          - communication/broadcasting.md
+    - Version Garuntees: versioning.md
     - Reference: reference.md
 
 theme:

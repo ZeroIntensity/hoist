@@ -1,6 +1,6 @@
 # Hoist
 
-## Easy client-server communication
+## Developer-oriented client-server communication
 
 -   [Documentation](https://hoist.zintensity.dev)
 -   [PyPI](https://pypi.org/project/hoist-http/)
@@ -29,4 +29,24 @@ async def main(server: hoist.Connection):
         print("client got hi")
 
     await server.message("hello")
+```
+
+### Features
+
+-   Fully type safe
+-   Async ready
+-   Modern API
+
+### Installation
+
+#### Linux/macOS
+
+```
+python3 -m pip install -U hoist-http
+```
+
+#### Windows
+
+```
+py -3 -m pip install -U hoist-http
 ```

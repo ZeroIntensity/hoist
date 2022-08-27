@@ -1,5 +1,9 @@
 # Changelog
 
+## `1.0.0`
+
+-   Added new operations to client.
+
 ## `1.0.0-rc.1`
 
 -   Added support for unions on schemas.

@@ -11,7 +11,7 @@ from ._client_ws import ServerSocket
 from ._errors import UNKNOWN_OPERATION
 from ._logging import hlog
 from ._messages import BaseMessagable, MessageListener
-from ._typing import JSONLike, MessageListeners, Payload, UrlLike, VersionLike
+from ._typing import MessageListeners, Payload, UrlLike, VersionLike
 from .exceptions import (
     AlreadyConnectedError, InvalidVersionError, NotConnectedError,
     ServerConnectError, ServerResponseError
@@ -320,7 +320,7 @@ class Connection(BaseMessagable, MessageListener):
         name: str,
         payload: Optional[Payload] = None,
         **payload_json: Any,
-    ) -> JSONLike:
+    ) -> Any:
         """Execute an operation on the server.
 
         Args:
@@ -365,3 +365,11 @@ class Connection(BaseMessagable, MessageListener):
     async def print(self, text: str):
         """Alias to `operation("print", {"text": text})`"""
         await self.operation("print", {"text": text})
+
+    async def read(self, path: str) -> str:
+        """Alias to `operation("path", {"path": path})`"""
+        return await self.operation("path", {"path": path})
+
+    async def get(self, url: str) -> str:
+        """Alias to `operation("get", {"url": url})`"""
+        return await self.operation("get", {"url": url})

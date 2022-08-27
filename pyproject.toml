@@ -36,3 +36,6 @@ dynamic = ["version"]
 Documentation = "https://hoist.zintensity.dev"
 Issues = "https://github.com/ZeroIntensity/hoist/issues"
 Source = "https://github.com/ZeroIntensity/hoist"
+
+[project.scripts]
+hoist = "hoist.__main__:main"

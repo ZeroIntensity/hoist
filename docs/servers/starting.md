@@ -4,17 +4,9 @@
 
 You can use the Hoist CLI to start a basic server:
 
-=== "Linux/Mac"
-
-    ```
-    python3 -m hoist -t authkey
-    ```
-
-=== "Windows"
-
-    ```
-    py -m hoist -t authkey
-    ```
+```
+$ hoist serve
+```
 
 ## Programatically
 

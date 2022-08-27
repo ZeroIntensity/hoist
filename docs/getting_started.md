@@ -29,17 +29,9 @@ Once Hoist has ben installed, we can run a basic server to make sure everything 
 
 In your terminal, run the following:
 
-=== "Linux/Mac"
-
-    ```
-    python3 -m hoist -t test
-    ```
-
-=== "Windows"
-
-    ```
-    py -m hoist -t test
-    ```
+```
+$ hoist serve -t test
+```
 
 !!! note
 

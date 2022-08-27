@@ -18,6 +18,7 @@ build = "hatch run sbuild && hatch build"
 dependencies = [
   "mkdocs",
   "mkdocs-material",
+  "mkdocstrings[python]",
 ]
 [envs.docs.scripts]
 build = "mkdocs build --clean"
@@ -28,20 +29,14 @@ python = ["37", "38", "39", "310"]
 
 # see https://github.com/mypyc/mypyc/issues/947
 
-#[build.targets.wheel.hooks.mypyc]
-#dependencies = ["hatch-mypyc"]
-#exclude = [
-#  "client.py",
-#  "_messages.py",
-#  "utils.py",
-#  "_uvicorn.py",
-#  "reference.py"
-#]
-#include = ["src/hoist"]
-#require-runtime-dependencies = true
-#mypy-args = [
-#  "--ignore-missing-imports",
-#]
-
 [build.targets.sdist]
-include = ["src/hoist"]
+exclude = [
+  "/.github",
+  "/docs",
+  "/page",
+  "/.mypy_cache",
+  "/.venv",
+  "/tests",
+]
+[build.targets.wheel]
+packages = ["src/hoist"]

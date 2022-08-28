@@ -1,5 +1,9 @@
 # Changelog
 
+## `1.0.1`
+
+-   Fix CLI not working with `-v` flag unless action was passed.
+
 ## `1.0.0`
 
 -   Added new operations to client.

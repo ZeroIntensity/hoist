@@ -28,8 +28,8 @@ async def _print(text: str):
 
 async def _get(url: str):
     async with aiohttp.ClientSession() as s:
-        async with s.get(url) as s:
-            return s.text
+        async with s.get(url) as r:
+            return r.text
 
 
 async def _read(path: str):

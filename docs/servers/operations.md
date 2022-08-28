@@ -20,7 +20,11 @@ sequenceDiagram
 
 ## Whitelisting and Blacklisting
 
-Hoist comes with some operations out of the box. By default, all of these are enabled.
+Hoist comes with some operations out of the box. By default, all of these are enabled. These operations include:
+
+-   `get`
+-   `read`
+-   `print`
 
 To blacklist one, pass its name to the `unsupported_operations` keyword argument:
 

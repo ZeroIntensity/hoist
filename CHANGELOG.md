@@ -1,5 +1,10 @@
 # Changelog
 
+## `1.0.2`
+
+-   Added compiled code with `mypyc`
+-   Add builtin operations to docs.
+
 ## `1.0.1`
 
 -   Fix CLI not working with `-v` flag unless action was passed.

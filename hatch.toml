@@ -38,5 +38,22 @@ exclude = [
   "/.venv",
   "/tests",
 ]
+
+[build.targets.wheel.hooks.mypyc]
+dependencies = ["hatch-mypyc"]
+exclude = [
+  "client.py",
+  "_messages.py",
+  "utils.py",
+  "_uvicorn.py",
+  "_socket.py",
+  "__main__.py",
+  "_operations.py"
+]
+require-runtime-dependencies = true
+mypy-args = [
+  "--ignore-missing-imports",
+]
+
 [build.targets.wheel]
 packages = ["src/hoist"]

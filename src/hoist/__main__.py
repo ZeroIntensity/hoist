@@ -45,6 +45,7 @@ def _process_payload(ctx: click.Context, _, value: str):
 @click.argument(
     "action",
     type=click.Choice(["serve", "connect"]),
+    required=False,
 )
 @click.option(
     "--token",
@@ -185,7 +186,7 @@ def main(
             default_token_choices=token_string,
         )
         server.start(host=host, port=port)
-    else:
+    elif action == "connect":
         if not token:
             _error("missing required option: url")
 
@@ -199,6 +200,8 @@ def main(
             _error(
                 f"could not connect to {url}: login token is invalid",
             )
+    else:
+        _error("missing required argument: action")
 
 
 if __name__ == "__main__":
